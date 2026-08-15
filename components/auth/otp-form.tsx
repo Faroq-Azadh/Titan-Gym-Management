@@ -149,7 +149,7 @@ export function OtpForm({ onVerify }: OtpFormProps) {
         <label className="mb-2 block text-[13.5px] font-semibold text-ink">
           کد تایید را وارد کنید
         </label>
-        <div className="mb-2 flex gap-2.5" dir="ltr">
+        <div className="mb-2 flex items-center justify-center gap-2 sm:gap-2.5" dir="ltr">
           {values.map((value, index) => (
             <input
               key={index}
@@ -162,7 +162,7 @@ export function OtpForm({ onVerify }: OtpFormProps) {
               aria-label={`رقم ${index + 1} کد تایید`}
               aria-invalid={!!otpError}
               className={cn(
-                "aspect-square w-0 min-w-0 flex-1 rounded-[12px] border-[1.5px] border-border bg-surface text-center text-xl font-extrabold text-ink outline-none transition-all duration-200 ease-in-out focus:border-primary focus:shadow-[0_0_0_4px_var(--tint)]",
+                "h-11 w-11 sm:h-12 sm:w-12 rounded-[12px] border-[1.5px] border-border bg-surface text-center text-lg font-bold text-ink outline-none transition-all duration-200 ease-in-out focus:border-primary focus:shadow-[0_0_0_4px_var(--tint)]",
                 otpError && "border-rose-500",
               )}
               onChange={(event) => handleChange(index, event.target.value)}

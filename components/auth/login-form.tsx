@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
@@ -105,14 +106,14 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
             مرا به خاطر بسپار
           </label>
         </div>
-        <a
-          href="#"
+        <Link
+          href="/forgot-password"
           className={cn(
             "text-[13.5px] font-semibold text-primary-dark hover:underline",
           )}
         >
           فراموشی رمز عبور؟
-        </a>
+        </Link>
       </div>
 
       <Button type="submit">ورود به پنل</Button>

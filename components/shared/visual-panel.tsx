@@ -5,6 +5,7 @@ import {
   loginTrustItems,
   registerTrustItems,
 } from "@/components/shared/trust-row";
+import { Lock, ShieldCheck, Bell } from "lucide-react";
 
 interface Step {
   num: string;
@@ -31,12 +32,12 @@ const registerSteps: Step[] = [
 ];
 
 interface VisualPanelProps {
-  variant: "login" | "register";
+  variant: "login" | "register" | "forgot-password";
 }
 
 export function VisualPanel({ variant }: VisualPanelProps) {
   const trustItems =
-    variant === "login" ? loginTrustItems : registerTrustItems;
+    variant === "register" ? registerTrustItems : loginTrustItems;
 
   return (
     <div className="relative hidden flex-col justify-between overflow-hidden bg-ink p-12 min-[981px]:flex">
@@ -60,9 +61,11 @@ export function VisualPanel({ variant }: VisualPanelProps) {
       </div>
 
       <div
-        className={`relative z-[1] ${variant === "login" ? "max-w-[420px]" : "max-w-[440px]"}`}
+        className={`relative z-[1] ${
+          variant === "register" ? "max-w-[440px]" : "max-w-[420px]"
+        }`}
       >
-        {variant === "login" ? (
+        {variant === "login" && (
           <>
             <h2 className="mb-4 text-[30px] font-extrabold leading-[1.5] text-white">
               مدیریت باشگاه، ساده و دقیق
@@ -73,7 +76,9 @@ export function VisualPanel({ variant }: VisualPanelProps) {
             </p>
             <StatsCard />
           </>
-        ) : (
+        )}
+
+        {variant === "register" && (
           <>
             <h2 className="mb-4 text-[30px] font-extrabold leading-[1.5] text-white">
               باشگاه خود را روی تیتان راه‌اندازی کنید
@@ -99,6 +104,42 @@ export function VisualPanel({ variant }: VisualPanelProps) {
                   </div>
                 </div>
               ))}
+            </div>
+          </>
+        )}
+
+        {variant === "forgot-password" && (
+          <>
+            <h2 className="mb-4 text-[30px] font-extrabold leading-[1.5] text-white">
+              رمز عبورتان را فراموش کرده‌اید؟
+            </h2>
+            <p className="mb-[28px] text-[15px] leading-[1.8] text-[#CBD5E1]">
+              نگران نباشید. هویت خود را در سه مرحله تأیید کنید و رمز تازه‌ای بسازید.
+              دسترسی شما به باشگاه و اطلاعات اعضا دست‌نخورده باقی می‌ماند.
+            </p>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-[22px] backdrop-blur-[6px]">
+              <div className="mb-[18px] flex items-center justify-between">
+                <span className="text-[13px] font-bold text-white">
+                  امنیت حساب
+                </span>
+                <span className="rounded-full bg-primary/15 px-[10px] py-[4px] text-[11px] font-bold text-primary">
+                  رمزنگاری‌شده
+                </span>
+              </div>
+              <div className="flex flex-col gap-[14px]">
+                <div className="flex items-start gap-[10px] text-[13px] leading-[1.7] text-[#CBD5E1]">
+                  <Lock className="mt-[3px] h-[17px] w-[17px] shrink-0 stroke-primary" />
+                  <span>کد تأیید فقط چند دقیقه اعتبار دارد</span>
+                </div>
+                <div className="flex items-start gap-[10px] text-[13px] leading-[1.7] text-[#CBD5E1]">
+                  <ShieldCheck className="mt-[3px] h-[17px] w-[17px] shrink-0 stroke-primary" />
+                  <span>رمز قبلی شما هرگز نمایش داده نمی‌شود</span>
+                </div>
+                <div className="flex items-start gap-[10px] text-[13px] leading-[1.7] text-[#CBD5E1]">
+                  <Bell className="mt-[3px] h-[17px] w-[17px] shrink-0 stroke-primary" />
+                  <span>پس از تغییر رمز، به شما اطلاع داده می‌شود</span>
+                </div>
+              </div>
             </div>
           </>
         )}

@@ -4,10 +4,10 @@ import Link from "next/link";
 
 export function SocialLogin() {
   return (
-    <div className="flex gap-3 max-[420px]:flex-col">
+    <div>
       <button
         type="button"
-        className="flex flex-1 items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-border py-3 text-[13.5px] font-semibold text-ink-soft transition-all duration-200 ease-in-out hover:border-ink-faint hover:bg-bg"
+        className="flex w-full items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-border py-3 text-[13.5px] font-semibold text-ink-soft transition-all duration-200 ease-in-out hover:border-ink-faint hover:bg-bg"
         aria-label="ورود با گوگل"
       >
         <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]">
@@ -17,23 +17,6 @@ export function SocialLogin() {
           />
         </svg>
         ورود با گوگل
-      </button>
-      <button
-        type="button"
-        className="flex flex-1 items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-border py-3 text-[13.5px] font-semibold text-ink-soft transition-all duration-200 ease-in-out hover:border-ink-faint hover:bg-bg"
-        aria-label="ورود با اپ"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#0F172A"
-          strokeWidth="2"
-          className="h-[18px] w-[18px]"
-        >
-          <rect x="5" y="2" width="14" height="20" rx="2" />
-          <path d="M12 18h.01" />
-        </svg>
-        ورود با اپ
       </button>
     </div>
   );
