@@ -70,7 +70,7 @@ export function LandingHeader() {
             تعرفه‌ها
           </a>
           <Link
-            href="/register-gym"
+            href="/about"
             className="text-[15px] font-medium text-ink-soft transition-colors hover:text-ink"
           >
             درباره ما
@@ -138,6 +138,13 @@ export function LandingHeader() {
             >
               تعرفه‌ها
             </a>
+            <Link
+              href="/about"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-[15px] font-semibold text-ink-soft hover:text-ink"
+            >
+              درباره ما
+            </Link>
             <hr className="my-2 border-border" />
             <div className="flex flex-col gap-3">
               <Link

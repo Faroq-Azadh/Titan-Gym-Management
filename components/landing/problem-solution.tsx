@@ -1,4 +1,5 @@
 import { AlertTriangle, Check } from "lucide-react";
+import { ScrollReveal } from "@/components/shared/scroll-reveal";
 
 export function LandingProblemSolution() {
   const problems = [
@@ -28,7 +29,7 @@ export function LandingProblemSolution() {
   return (
     <section className="py-20 min-[640px]:py-[110px]">
       <div className="mx-auto max-w-[1240px] px-5 min-[640px]:px-8">
-        <div className="mb-16 max-w-[640px]">
+        <ScrollReveal className="mb-16 max-w-[640px]">
           <span className="mb-3.5 inline-block text-[13px] font-bold tracking-wide text-primary-dark">
             چرا تیتان
           </span>
@@ -39,11 +40,11 @@ export function LandingProblemSolution() {
             اکسل، کاغذ و چند اپلیکیشن جدا از هم، کار شما را کند می‌کنند. تیتان همه را در
             یک جا جمع می‌کند.
           </p>
-        </div>
+        </ScrollReveal>
 
         <div className="grid grid-cols-1 gap-12 min-[981px]:grid-cols-[0.85fr_1.15fr]">
           {/* PROBLEM COLUMN */}
-          <div>
+          <ScrollReveal>
             <h3 className="mb-6 flex items-center gap-2.5 text-[14px] font-bold text-ink-faint">
               <span className="h-2 w-2 rounded-full bg-red-400" />
               وضعیت فعلی
@@ -63,10 +64,10 @@ export function LandingProblemSolution() {
                 </div>
               ))}
             </div>
-          </div>
+          </ScrollReveal>
 
           {/* SOLUTION COLUMN */}
-          <div>
+          <ScrollReveal delay={0.15}>
             <h3 className="mb-6 flex items-center gap-2.5 text-[14px] font-bold text-ink-faint">
               <span className="h-2 w-2 rounded-full bg-primary" />
               با تیتان
@@ -86,7 +87,7 @@ export function LandingProblemSolution() {
                 </div>
               ))}
             </div>
-          </div>
+          </ScrollReveal>
         </div>
       </div>
     </section>

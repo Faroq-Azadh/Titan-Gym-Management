@@ -22,7 +22,7 @@ export function LandingFooter() {
             <ul className="flex flex-col gap-3">
               <li>
                 <Link
-                  href="/register-gym"
+                  href="/about"
                   className="text-[14px] text-ink-soft transition-colors hover:text-primary-dark"
                 >
                   درباره ما

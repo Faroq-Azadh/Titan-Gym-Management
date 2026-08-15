@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
+import { ScrollReveal } from "@/components/shared/scroll-reveal";
 
 export function LandingPricing() {
   const plans = [
@@ -83,7 +84,7 @@ export function LandingPricing() {
       className="border-y border-border bg-surface py-20 min-[640px]:py-[110px]"
     >
       <div className="mx-auto max-w-[1240px] px-5 min-[640px]:px-8">
-        <div className="mx-auto mb-16 max-w-[640px] text-center">
+        <ScrollReveal className="mx-auto mb-16 max-w-[640px] text-center">
           <span className="mb-3.5 inline-block text-[13px] font-bold tracking-wide text-primary-dark">
             تعرفه‌ها
           </span>
@@ -94,58 +95,59 @@ export function LandingPricing() {
             با پلن رایگان شروع کنید و هر زمان خواستید ارتقا دهید. بدون قرارداد
             بلندمدت.
           </p>
-        </div>
+        </ScrollReveal>
 
         <div className="grid grid-cols-1 gap-5 min-[640px]:grid-cols-2 min-[981px]:grid-cols-4">
           {plans.map((p, idx) => (
-            <div
-              key={idx}
-              className={`rounded-[20px] border-[1.5px] p-6 transition-all duration-200 min-[640px]:p-8 ${p.cardClass}`}
-            >
-              {p.featured && (
-                <span className="absolute -top-3.5 right-7 rounded-full bg-ink px-3.5 py-1 text-[12px] font-bold text-white">
-                  محبوب‌ترین
-                </span>
-              )}
-              <div className="mb-3 text-[15px] font-bold text-ink-soft">
-                {p.name}
-              </div>
-              <div className="mb-1.5 flex items-baseline gap-1.5">
-                <span
-                  className={`font-black text-ink ${
-                    p.isFree ? "text-[34px]" : "text-[34px]"
-                  }`}
-                >
-                  {p.price}
-                </span>
-                {p.period && (
-                  <span className="text-[14px] text-ink-faint">{p.period}</span>
-                )}
-              </div>
-
-              <div className="mb-6 min-h-[44px] text-[13px] leading-[1.75] text-ink-faint">
-                {p.desc}
-              </div>
-
-              <Link
-                href="/register-gym"
-                className={`mb-6 flex w-full items-center justify-center gap-2 rounded-[12px] py-3 text-[15px] font-bold transition-all ${p.btnClass}`}
+            <ScrollReveal key={idx} delay={idx * 0.1}>
+              <div
+                className={`rounded-[20px] border-[1.5px] p-6 transition-all duration-200 hover:-translate-y-1 hover:shadow-md min-[640px]:p-8 ${p.cardClass}`}
               >
-                {p.btnText}
-              </Link>
-
-              <ul className="flex flex-col gap-3">
-                {p.features.map((feat, fIdx) => (
-                  <li
-                    key={fIdx}
-                    className="flex items-start gap-2.5 text-[13.5px] font-medium leading-[1.7] text-ink-soft"
+                {p.featured && (
+                  <span className="absolute -top-3.5 right-7 rounded-full bg-ink px-3.5 py-1 text-[12px] font-bold text-white">
+                    محبوب‌ترین
+                  </span>
+                )}
+                <div className="mb-3 text-[15px] font-bold text-ink-soft">
+                  {p.name}
+                </div>
+                <div className="mb-1.5 flex items-baseline gap-1.5">
+                  <span
+                    className={`font-black text-ink ${
+                      p.isFree ? "text-[34px]" : "text-[34px]"
+                    }`}
                   >
-                    <Check className="mt-1 h-3.5 w-3.5 shrink-0 stroke-primary-dark stroke-[3]" />
-                    <span>{feat}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                    {p.price}
+                  </span>
+                  {p.period && (
+                    <span className="text-[14px] text-ink-faint">{p.period}</span>
+                  )}
+                </div>
+
+                <div className="mb-6 min-h-[44px] text-[13px] leading-[1.75] text-ink-faint">
+                  {p.desc}
+                </div>
+
+                <Link
+                  href="/register-gym"
+                  className={`mb-6 flex w-full items-center justify-center gap-2 rounded-[12px] py-3 text-[15px] font-bold transition-all ${p.btnClass}`}
+                >
+                  {p.btnText}
+                </Link>
+
+                <ul className="flex flex-col gap-3">
+                  {p.features.map((feat, fIdx) => (
+                    <li
+                      key={fIdx}
+                      className="flex items-start gap-2.5 text-[13.5px] font-medium leading-[1.7] text-ink-soft"
+                    >
+                      <Check className="mt-1 h-3.5 w-3.5 shrink-0 stroke-primary-dark stroke-[3]" />
+                      <span>{feat}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </ScrollReveal>
           ))}
         </div>
       </div>

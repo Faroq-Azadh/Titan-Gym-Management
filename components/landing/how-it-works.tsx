@@ -1,3 +1,5 @@
+import { ScrollReveal } from "@/components/shared/scroll-reveal";
+
 export function LandingHowItWorks() {
   const steps = [
     {
@@ -25,7 +27,7 @@ export function LandingHowItWorks() {
   return (
     <section id="how" className="py-20 min-[640px]:py-[110px]">
       <div className="mx-auto max-w-[1240px] px-5 min-[640px]:px-8">
-        <div className="mx-auto mb-16 max-w-[640px] text-center">
+        <ScrollReveal className="mx-auto mb-16 max-w-[640px] text-center">
           <span className="mb-3.5 inline-block text-[13px] font-bold tracking-wide text-primary-dark">
             نحوه شروع کار
           </span>
@@ -35,7 +37,7 @@ export function LandingHowItWorks() {
           <p className="text-[16px] leading-[1.8] text-ink-soft">
             چهار قدم ساده تا راه‌اندازی کامل، بدون نیاز به دانش فنی.
           </p>
-        </div>
+        </ScrollReveal>
 
         <div className="relative">
           {/* Dashed background line for desktop */}
@@ -43,23 +45,25 @@ export function LandingHowItWorks() {
 
           <div className="relative z-10 grid grid-cols-1 gap-6 min-[640px]:grid-cols-2 min-[981px]:grid-cols-4">
             {steps.map((step, idx) => (
-              <div key={idx} className="flex flex-col items-start">
-                <div
-                  className={`mb-6 flex h-[72px] w-[72px] items-center justify-center rounded-full border-[1.5px] bg-surface text-[22px] font-extrabold ${
-                    idx % 2 === 0
-                      ? "border-primary text-primary-dark"
-                      : "border-border text-ink"
-                  }`}
-                >
-                  {step.num}
+              <ScrollReveal key={idx} delay={idx * 0.1}>
+                <div className="flex flex-col items-start">
+                  <div
+                    className={`mb-6 flex h-[72px] w-[72px] items-center justify-center rounded-full border-[1.5px] bg-surface text-[22px] font-extrabold ${
+                      idx % 2 === 0
+                        ? "border-primary text-primary-dark"
+                        : "border-border text-ink"
+                    }`}
+                  >
+                    {step.num}
+                  </div>
+                  <h3 className="mb-[10px] text-[16px] font-bold text-ink">
+                    {step.title}
+                  </h3>
+                  <p className="text-[14px] leading-[1.7] text-ink-soft">
+                    {step.desc}
+                  </p>
                 </div>
-                <h3 className="mb-[10px] text-[16px] font-bold text-ink">
-                  {step.title}
-                </h3>
-                <p className="text-[14px] leading-[1.7] text-ink-soft">
-                  {step.desc}
-                </p>
-              </div>
+              </ScrollReveal>
             ))}
           </div>
         </div>
