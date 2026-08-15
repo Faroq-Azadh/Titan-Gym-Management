@@ -1,0 +1,24 @@
+import Link from "next/link";
+
+export function LandingFinalCTA() {
+  return (
+    <section className="py-20 min-[640px]:py-[110px]">
+      <div className="mx-auto max-w-[1240px] px-5 min-[640px]:px-8">
+        <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#0FBF87] via-[#16E0A0] to-[#22D3EE] p-[56px_24px] text-center min-[640px]:p-[80px_60px]">
+          <h2 className="relative z-10 mb-[18px] text-[28px] font-black text-white min-[640px]:text-[36px] min-[981px]:text-[44px]">
+            باشگاه‌تان را همین امروز هوشمند کنید
+          </h2>
+          <p className="relative z-10 mx-auto mb-[36px] max-w-[480px] text-[16px] text-white/95">
+            بدون نیاز به کارت بانکی، ۴۵ روز رایگان همه امکانات تیتان را تجربه کنید.
+          </p>
+          <Link
+            href="/register-gym"
+            className="relative z-10 inline-flex items-center justify-center rounded-[14px] bg-ink px-[30px] py-[15px] text-[16px] font-bold text-white transition-all duration-200 hover:bg-black hover:shadow-2xl"
+          >
+            شروع رایگان
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}

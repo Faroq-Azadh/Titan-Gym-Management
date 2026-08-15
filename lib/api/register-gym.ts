@@ -10,7 +10,7 @@ export const REGISTER_CONFIG = {
   dashboardUrl: process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "/admin",
   loginUrl: "/login",
   redirectSeconds: 3,
-  freeTrialDays: 14,
+  freeTrialDays: 45,
   freeMaxMembers: 50,
   freeMaxCoaches: 3,
 } as const;

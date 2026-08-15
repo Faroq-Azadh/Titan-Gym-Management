@@ -28,6 +28,6 @@ export const loginTrustItems: TrustItem[] = [
 
 export const registerTrustItems: TrustItem[] = [
   { num: "۵۰۰+", label: "باشگاه فعال" },
-  { num: "۱۴ روز", label: "استفاده رایگان" },
+  { num: "۴۵ روز", label: "استفاده رایگان" },
   { num: "۹۹.۹٪", label: "پایداری" },
 ];

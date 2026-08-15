@@ -11,7 +11,7 @@ export const gymTypeOptions = [
 ] as const;
 
 export const planOptions = [
-  { value: "free", label: "رایگان — ۱۴ روز، مناسب باشگاه‌های کوچک" },
+  { value: "free", label: "رایگان — ۴۵ روز" },
   { value: "basic", label: "پایه — ۱.۲ میلیون تومان / ماه" },
   { value: "pro", label: "حرفه‌ای — ۲.۹ میلیون تومان / ماه" },
   { value: "enterprise", label: "سازمانی — قیمت‌گذاری سفارشی" },

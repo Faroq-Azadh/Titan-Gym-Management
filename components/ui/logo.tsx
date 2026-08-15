@@ -33,10 +33,15 @@ function LogoMark({ size = "md" }: { size?: "sm" | "md" }) {
   );
 }
 
-export function Logo({ variant = "light", className, href }: LogoProps) {
+export function Logo({
+  variant = "light",
+  className,
+  href,
+  size,
+}: LogoProps & { size?: "sm" | "md" }) {
   const content = (
     <>
-      <LogoMark size={variant === "dark" ? "sm" : "md"} />
+      <LogoMark size={size ?? (variant === "dark" && className?.includes("hidden") ? "sm" : "md")} />
       <span>تیتان</span>
     </>
   );
@@ -44,7 +49,7 @@ export function Logo({ variant = "light", className, href }: LogoProps) {
   const classes = cn(
     "flex items-center gap-2.5 font-extrabold",
     variant === "light" && "text-xl text-white",
-    variant === "dark" && "text-[19px] text-ink",
+    variant === "dark" && "text-[20px] text-[#0F172A]",
     className,
   );
 

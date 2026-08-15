@@ -34,11 +34,8 @@ import { cn } from "@/lib/utils";
 const PLAN_NOTES: Record<PlanId, ReactNode> = {
   free: (
     <>
-      پلن رایگان به مدت{" "}
-      <strong>{persianNumber(REGISTER_CONFIG.freeTrialDays)} روز</strong> فعال
-      می‌شود — تا {persianNumber(REGISTER_CONFIG.freeMaxMembers)} عضو و{" "}
-      {persianNumber(REGISTER_CONFIG.freeMaxCoaches)} مربی، بدون نیاز به کارت
-      بانکی. در پایان دوره می‌توانید ارتقا دهید یا حساب را همان‌طور نگه دارید.
+      {persianNumber(REGISTER_CONFIG.freeTrialDays)} روز امکان استفاده از تمامی
+      امکانات تیتان را دارید.
     </>
   ),
   basic:
