@@ -58,7 +58,7 @@ export function LandingTestimonials() {
           {/* Main Large Card */}
           <div className="flex flex-col justify-between rounded-[16px] border border-[#D8F5E8] bg-tint p-7 shadow-sm min-[981px]:row-span-2 min-[981px]:p-[30px]">
             <div>
-              <div className="mb-3.5 font-serif text-[36px] font-black leading-none text-primary">
+              <div className="mb-3.5 text-[36px] font-black leading-none text-primary">
                 ”
               </div>
               <p className="mb-[22px] text-[17px] font-medium leading-[1.85] text-ink">
@@ -85,7 +85,7 @@ export function LandingTestimonials() {
               className="flex flex-col justify-between rounded-[16px] border border-border bg-surface p-7 shadow-sm min-[981px]:p-[30px]"
             >
               <div>
-                <div className="mb-3.5 font-serif text-[36px] font-black leading-none text-primary">
+                <div className="mb-3.5 text-[36px] font-black leading-none text-primary">
                   ”
                 </div>
                 <p className="mb-[22px] text-[15px] font-medium leading-[1.85] text-ink">

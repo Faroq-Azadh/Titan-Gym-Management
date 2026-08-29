@@ -40,7 +40,7 @@ export function AboutStory() {
                   "radial-gradient(circle, rgba(22,224,160,0.22), transparent 70%)",
               }}
             />
-            <div className="relative z-10 font-serif text-[52px] font-black leading-none text-primary">
+            <div className="relative z-10 text-[52px] font-black leading-none text-primary">
               ”
             </div>
             <blockquote className="relative z-10 mb-6 text-[17px] font-bold leading-[1.95] text-white min-[640px]:text-[19px]">
