@@ -2,18 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Users,
-  UserCheck,
-  CalendarDays,
-  Dumbbell,
-  Tag,
-  CreditCard,
-  BarChart3,
-  Settings,
-  ChevronDown,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AdminSidebarProps {

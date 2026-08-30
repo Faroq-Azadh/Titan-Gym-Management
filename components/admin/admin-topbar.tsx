@@ -5,9 +5,15 @@ import { Menu, Search } from "lucide-react";
 
 interface AdminTopbarProps {
   onToggleSidebar: () => void;
+  searchPlaceholder?: string;
+  customAction?: React.ReactNode;
 }
 
-export function AdminTopbar({ onToggleSidebar }: AdminTopbarProps) {
+export function AdminTopbar({
+  onToggleSidebar,
+  searchPlaceholder = "جستجو…",
+  customAction,
+}: AdminTopbarProps) {
   return (
     <header className="sticky top-0 z-50 flex h-[72px] items-center gap-[16px] border-b border-border bg-[#FAFAF9]/85 px-[16px] backdrop-blur-[12px] min-[640px]:px-[28px]">
       {/* Mobile hamburger button */}
@@ -25,7 +31,7 @@ export function AdminTopbar({ onToggleSidebar }: AdminTopbarProps) {
         <Search className="h-[17px] w-[17px] shrink-0 text-ink-faint" />
         <input
           type="text"
-          placeholder="جستجوی عضو، رزرو یا پرداخت…"
+          placeholder={searchPlaceholder}
           className="w-full border-none bg-transparent text-[14px] text-ink placeholder:text-ink-faint focus:outline-none"
         />
       </div>
@@ -52,23 +58,27 @@ export function AdminTopbar({ onToggleSidebar }: AdminTopbarProps) {
           </svg>
         </Link>
 
-        <Link
-          href="/admin/messages"
-          className="flex h-[42px] w-[42px] items-center justify-center rounded-[12px] border border-border bg-surface text-ink-soft transition-all duration-180 hover:border-primary hover:bg-tint hover:text-ink"
-          aria-label="پیام‌ها"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-[19px] w-[19px]"
+        {customAction ? (
+          customAction
+        ) : (
+          <Link
+            href="/admin/messages"
+            className="flex h-[42px] w-[42px] items-center justify-center rounded-[12px] border border-border bg-surface text-ink-soft transition-all duration-180 hover:border-primary hover:bg-tint hover:text-ink"
+            aria-label="پیام‌ها"
           >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        </Link>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-[19px] w-[19px]"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </Link>
+        )}
       </div>
     </header>
   );
