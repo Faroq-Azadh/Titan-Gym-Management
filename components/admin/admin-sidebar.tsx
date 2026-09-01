@@ -192,7 +192,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       {/* Mobile scrim / backdrop */}
       <div
         className={cn(
-          "fixed inset-0 z-55 bg-ink/40 backdrop-blur-[2px] transition-opacity duration-300 min-[981px]:hidden",
+          "fixed inset-0 z-55 bg-ink/40 backdrop-blur-[2px] transition-opacity duration-300 min-[981px]:hidden print:hidden",
           isOpen ? "opacity-100" : "pointer-events-none opacity-0",
         )}
         onClick={onClose}
@@ -202,14 +202,14 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       {/* Sidebar aside */}
       <aside
         className={cn(
-          "fixed right-0 top-0 z-60 flex h-screen w-[264px] shrink-0 flex-col border-l border-border bg-surface shadow-lg transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] min-[981px]:sticky min-[981px]:translate-x-0 min-[981px]:shadow-none",
+          "fixed right-0 top-0 z-60 flex h-screen w-[264px] shrink-0 flex-col border-l border-border bg-surface shadow-lg transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] min-[981px]:sticky min-[981px]:translate-x-0 min-[981px]:shadow-none print:hidden",
           isOpen ? "translate-x-0" : "translate-x-full min-[981px]:translate-x-0",
         )}
       >
         {/* Sidebar head with logo */}
         <div className="flex items-center justify-between px-[22px] pt-[22px] pb-[16px]">
           <Link href="/admin" className="flex items-center gap-[10px] text-[20px] font-extrabold text-ink">
-            <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-linear-to-br from-primary to-cyan">
+            <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-primary to-cyan">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"

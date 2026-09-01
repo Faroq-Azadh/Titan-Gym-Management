@@ -257,3 +257,53 @@
   background-position: left 14px center;
   padding-left: 38px;
 }
+
+/* ===== PRINT & PDF STYLES ===== */
+@media print {
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    background: #FAFAF9 !important;
+    color: #0F172A !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-kpi-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 14px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .print-grid-2 {
+    display: grid !important;
+    grid-template-columns: 1.5fr 1fr !important;
+    gap: 14px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .print-grid-3 {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 14px !important;
+    margin-bottom: 14px !important;
+  }
+}

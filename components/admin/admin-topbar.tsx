@@ -15,7 +15,7 @@ export function AdminTopbar({
   customAction,
 }: AdminTopbarProps) {
   return (
-    <header className="sticky top-0 z-50 flex h-[72px] items-center gap-[16px] border-b border-border bg-[#FAFAF9]/85 px-[16px] backdrop-blur-[12px] min-[640px]:px-[28px]">
+    <header className="sticky top-0 z-50 flex h-[72px] items-center gap-[16px] border-b border-border bg-[#FAFAF9]/85 px-[16px] backdrop-blur-[12px] min-[640px]:px-[28px] print:hidden">
       {/* Mobile hamburger button */}
       <button
         type="button"

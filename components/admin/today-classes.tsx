@@ -90,8 +90,8 @@ export function TodayClasses() {
                     className={cn(
                       "h-full rounded-full transition-all duration-300",
                       item.isFull
-                        ? "bg-linear-to-r from-[#F59E0B] to-[#EF4444]"
-                        : "bg-linear-to-r from-primary to-cyan",
+                        ? "bg-gradient-to-r from-[#F59E0B] to-[#EF4444]"
+                        : "bg-gradient-to-r from-primary to-cyan",
                     )}
                     style={{ width: `${item.percentage}%` }}
                   />

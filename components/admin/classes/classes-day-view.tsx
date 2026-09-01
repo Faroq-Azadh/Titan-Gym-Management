@@ -37,20 +37,20 @@ export function ClassesDayView({
       case "cyan":
         return {
           badge: "bg-[rgba(34,211,238,0.15)] text-[#0891B2]",
-          bar: "bg-linear-to-r from-cyan to-blue-500",
+          bar: "bg-gradient-to-r from-cyan to-blue-500",
           border: "border-cyan/40",
         };
       case "amber":
         return {
           badge: "bg-[#FFFBEB] text-[#B45309]",
-          bar: "bg-linear-to-r from-[#F59E0B] to-[#EF4444]",
+          bar: "bg-gradient-to-r from-[#F59E0B] to-[#EF4444]",
           border: "border-[#F59E0B]/40",
         };
       case "emerald":
       default:
         return {
           badge: "bg-tint text-primary-dark",
-          bar: "bg-linear-to-r from-primary to-cyan",
+          bar: "bg-gradient-to-r from-primary to-cyan",
           border: "border-primary/40",
         };
     }
