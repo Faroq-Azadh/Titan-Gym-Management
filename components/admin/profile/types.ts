@@ -8,6 +8,7 @@ export interface ProfileUserData {
   about: string;
   branch: string;
   memberSince: string;
+  avatarUrl?: string;
 }
 
 export interface ProfileClubData {

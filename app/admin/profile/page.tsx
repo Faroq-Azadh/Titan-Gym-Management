@@ -114,7 +114,12 @@ export default function AdminProfilePage() {
           {/* Profile 2-Column Grid (320px / 1fr) */}
           <div className="grid grid-cols-1 items-start gap-[18px] min-[980px]:grid-cols-[320px_1fr]">
             {/* Summary Left Card */}
-            <ProfileSummaryCard user={user} />
+            <ProfileSummaryCard
+              user={user}
+              onUpdateUser={(updated) =>
+                setUser((prev) => ({ ...prev, ...updated }))
+              }
+            />
 
             {/* Right Card with Tabs */}
             <div className="rounded-[16px] border border-border bg-surface shadow-[0_2px_8px_rgba(15,23,42,0.04)]">

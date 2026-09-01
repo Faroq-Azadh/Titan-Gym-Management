@@ -1,17 +1,49 @@
-"use client";
-
+import { useRef } from "react";
 import { ProfileUserData } from "./types";
 import { toPersianDigits } from "@/lib/persian-digits";
 
 interface ProfileSummaryCardProps {
   user: ProfileUserData;
+  onUpdateUser?: (updated: Partial<ProfileUserData>) => void;
 }
 
-export function ProfileSummaryCard({ user }: ProfileSummaryCardProps) {
+export function ProfileSummaryCard({ user, onUpdateUser }: ProfileSummaryCardProps) {
   const fullName = `${user.firstName} ${user.lastName}`;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCameraClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("لطفاً یک فایل تصویری معتبر انتخاب کنید.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result && typeof reader.result === "string") {
+        onUpdateUser?.({ avatarUrl: reader.result });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   return (
     <div className="overflow-hidden rounded-[16px] border border-border bg-surface shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+      {/* Hidden File Input for Avatar Upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
       {/* Gradient Cover */}
       <div className="relative h-[96px] bg-gradient-to-br from-primary to-cyan">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_120%,rgba(255,255,255,0.25),transparent_60%)]" />
@@ -21,13 +53,23 @@ export function ProfileSummaryCard({ user }: ProfileSummaryCardProps) {
       <div className="px-[22px] pb-[22px] text-center">
         {/* Big Avatar */}
         <div className="relative -mt-[46px] mx-auto mb-[14px] flex h-[92px] w-[92px] items-center justify-center rounded-[24px] border-[4px] border-surface bg-gradient-to-br from-primary to-cyan text-[32px] font-extrabold text-ink shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
-          آو
+          {user.avatarUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={user.avatarUrl}
+              alt={fullName}
+              className="h-full w-full rounded-[20px] object-cover"
+            />
+          ) : (
+            <span>آو</span>
+          )}
           {/* Camera upload button */}
           <button
             type="button"
-            className="absolute -bottom-[4px] -left-[4px] flex h-[30px] w-[30px] items-center justify-center rounded-[10px] border-[3px] border-surface bg-ink text-white transition-colors hover:bg-primary-dark"
-            title="تغییر تصویر پروفایل"
-            aria-label="تغییر تصویر"
+            onClick={handleCameraClick}
+            className="absolute -bottom-[4px] -left-[4px] flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-[10px] border-[3px] border-surface bg-ink text-white transition-all hover:bg-primary-dark hover:scale-105"
+            title="انتخاب تصویر جدید برای پروفایل"
+            aria-label="تغییر تصویر پروفایل"
           >
             <svg
               viewBox="0 0 24 24"
