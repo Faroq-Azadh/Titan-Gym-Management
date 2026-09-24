@@ -21,7 +21,7 @@ export const loginOtpRequestSchema = z.object({
 export const loginOtpVerifySchema = z.object({
   otp: z
     .string()
-    .length(5, "کد تایید باید ۵ رقم باشد"),
+    .length(6, "کد تایید باید ۶ رقم باشد"),
 });
 
 export type LoginPasswordFormValues = z.infer<typeof loginPasswordSchema>;

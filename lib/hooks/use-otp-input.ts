@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { normalizeDigits } from "@/lib/persian-digits";
 
-const OTP_LENGTH = 5;
+const OTP_LENGTH = 6;
 
 export function useOtpInput(length = OTP_LENGTH) {
   const [values, setValues] = useState<string[]>(Array(length).fill(""));

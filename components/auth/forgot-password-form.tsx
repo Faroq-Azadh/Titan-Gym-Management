@@ -11,6 +11,8 @@ import {
   Lock,
 } from "lucide-react";
 import { toPersianDigits, normalizeDigits } from "@/lib/persian-digits";
+import { authService } from "@/lib/api/services/auth.service";
+import { ApiError } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
 type Step = 1 | 2 | 3 | 4;
@@ -25,6 +27,7 @@ export function ForgotPasswordForm() {
   // Step 2 OTP states
   const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
   const [otpError, setOtpError] = useState("");
+  const [resetToken, setResetToken] = useState("");
   const [timerLeft, setTimerLeft] = useState(RESEND_TIMEOUT);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const otpInputsRef = useRef<(HTMLInputElement | null)[]>([]);
@@ -90,7 +93,7 @@ export function ForgotPasswordForm() {
     setPhoneError("");
     setGeneralError("");
 
-    const normPhone = normalizeDigits(phone);
+    const normPhone = normalizeDigits(phone.trim());
     if (!normPhone) {
       setPhoneError("شماره موبایل را وارد کنید.");
       return;
@@ -101,12 +104,26 @@ export function ForgotPasswordForm() {
       return;
     }
 
-    startTransition(() => {
-      // Prepared for backend API endpoint (e.g. /api/v1/auth/password-reset/)
-      setTimerLeft(RESEND_TIMEOUT);
-      setIsTimerActive(true);
-      setStep(2);
-      focusFirstOtp();
+    startTransition(async () => {
+      try {
+        await authService.forgotPasswordRequest({
+          identifier: normPhone,
+          phone_number: normPhone,
+        });
+
+        setTimerLeft(RESEND_TIMEOUT);
+        setIsTimerActive(true);
+        setStep(2);
+        focusFirstOtp();
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setGeneralError(err.detail || "کاربری با این شماره موبایل یافت نشد.");
+        } else if (err instanceof Error) {
+          setGeneralError(err.message);
+        } else {
+          setGeneralError("ارسال پیامک با خطا مواجه شد. لطفاً مجدداً تلاش کنید.");
+        }
+      }
     });
   };
 
@@ -155,13 +172,29 @@ export function ForgotPasswordForm() {
   };
 
   const handleResendOtp = () => {
-    if (isTimerActive) return;
+    if (isTimerActive || isPending) return;
     setOtp(Array(6).fill(""));
     setOtpError("");
     setGeneralError("");
-    setTimerLeft(RESEND_TIMEOUT);
-    setIsTimerActive(true);
-    focusFirstOtp();
+
+    startTransition(async () => {
+      try {
+        const normPhone = normalizeDigits(phone.trim());
+        await authService.forgotPasswordRequest({
+          identifier: normPhone,
+          phone_number: normPhone,
+        });
+        setTimerLeft(RESEND_TIMEOUT);
+        setIsTimerActive(true);
+        focusFirstOtp();
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setGeneralError(err.detail || "ارسال مجدد پیامک با خطا مواجه شد.");
+        } else {
+          setGeneralError("ارسال مجدد با خطا مواجه شد.");
+        }
+      }
+    });
   };
 
   const handleStep2Submit = (e: React.FormEvent) => {
@@ -169,15 +202,33 @@ export function ForgotPasswordForm() {
     setOtpError("");
     setGeneralError("");
 
-    const code = otp.join("");
+    const code = normalizeDigits(otp.join(""));
     if (code.length < 6) {
       setOtpError("کد ۶ رقمی را کامل وارد کنید.");
       return;
     }
 
-    startTransition(() => {
-      // Prepared for backend API endpoint (e.g. /api/v1/auth/password-reset/verify/)
-      setStep(3);
+    startTransition(async () => {
+      try {
+        const normPhone = normalizeDigits(phone.trim());
+        const res = await authService.forgotPasswordVerify({
+          identifier: normPhone,
+          code,
+        });
+
+        if (res.reset_token) {
+          setResetToken(res.reset_token);
+        }
+        setStep(3);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setOtpError(err.detail || "کد تأیید وارد شده نامعتبر یا منقضی شده است.");
+        } else if (err instanceof Error) {
+          setOtpError(err.message);
+        } else {
+          setOtpError("تأیید کد با خطا مواجه شد.");
+        }
+      }
     });
   };
 
@@ -205,9 +256,29 @@ export function ForgotPasswordForm() {
       return;
     }
 
-    startTransition(() => {
-      // Prepared for backend API endpoint (e.g. /api/v1/auth/password-reset/confirm/)
-      setStep(4);
+    startTransition(async () => {
+      try {
+        const normPhone = normalizeDigits(phone.trim());
+        const code = normalizeDigits(otp.join(""));
+
+        await authService.forgotPasswordConfirm({
+          reset_token: resetToken || undefined,
+          phone_number: normPhone,
+          code,
+          password,
+          password_confirm: passwordConfirm,
+        });
+
+        setStep(4);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setGeneralError(err.detail || "ثبت رمز جدید با خطا مواجه شد.");
+        } else if (err instanceof Error) {
+          setGeneralError(err.message);
+        } else {
+          setGeneralError("تغییر رمز عبور با خطا مواجه شد. لطفاً مجدداً تلاش کنید.");
+        }
+      }
     });
   };
 
@@ -243,7 +314,7 @@ export function ForgotPasswordForm() {
 
       {/* GENERAL ALERT ERROR */}
       {generalError && (
-        <div className="mb-[18px] flex items-start gap-2.5 rounded-[12px] border border-red-200 bg-red-50 p-3 text-[13px] font-semibold leading-[1.85] text-red-700">
+        <div className="mb-[18px] flex items-start gap-2.5 rounded-[12px] border border-red-200 bg-red-50 p-3 text-[13px] font-semibold leading-[1.85] text-red-700 animate-in fade-in duration-200">
           <AlertCircle className="mt-1 h-[17px] w-[17px] shrink-0" />
           <span>{generalError}</span>
         </div>
@@ -274,10 +345,12 @@ export function ForgotPasswordForm() {
                   id="phone-input"
                   type="tel"
                   dir="rtl"
+                  disabled={isPending}
                   value={phone}
                   onChange={(e) => {
                     setPhone(e.target.value);
                     setPhoneError("");
+                    setGeneralError("");
                   }}
                   placeholder="مثلاً ۰۹۱۲۳۴۵۶۷۸۹"
                   autoComplete="tel"
@@ -302,7 +375,7 @@ export function ForgotPasswordForm() {
             <button
               type="submit"
               disabled={isPending}
-              className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-ink py-[14px] text-[15px] font-bold text-white transition-all duration-200 hover:bg-primary-dark hover:shadow-emerald disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-ink py-[14px] text-[15px] font-bold text-white transition-all duration-200 hover:bg-primary-dark hover:shadow-emerald disabled:opacity-60 cursor-pointer"
             >
               {isPending ? (
                 <>
@@ -349,8 +422,9 @@ export function ForgotPasswordForm() {
                 setStep(1);
                 setOtp(Array(6).fill(""));
                 setOtpError("");
+                setGeneralError("");
               }}
-              className="text-[12.5px] font-bold text-primary-dark hover:underline"
+              className="text-[12.5px] font-bold text-primary-dark hover:underline cursor-pointer"
             >
               تغییر
             </button>
@@ -358,7 +432,7 @@ export function ForgotPasswordForm() {
 
           <form onSubmit={handleStep2Submit} noValidate>
             <div
-              className={cn("mb-2 flex items-center justify-center gap-2 sm:gap-2.5", otpError && "has-error")}
+              className={cn("mb-2 flex items-center justify-center gap-1.5 sm:gap-2.5", otpError && "has-error")}
               dir="ltr"
             >
               {otp.map((digit, idx) => (
@@ -368,6 +442,7 @@ export function ForgotPasswordForm() {
                     otpInputsRef.current[idx] = el;
                   }}
                   type="text"
+                  disabled={isPending}
                   inputMode="numeric"
                   maxLength={1}
                   value={digit ? toPersianDigits(digit) : ""}
@@ -376,7 +451,7 @@ export function ForgotPasswordForm() {
                   onPaste={handleOtpPaste}
                   aria-label={`رقم ${idx + 1}`}
                   className={cn(
-                    "h-11 w-11 sm:h-12 sm:w-12 rounded-[12px] border-[1.5px] bg-surface text-center text-lg font-bold text-ink transition-all focus:border-primary focus:shadow-[0_0_0_4px_var(--tint)] focus:outline-none",
+                    "h-11 w-10 sm:h-12 sm:w-11 rounded-[10px] sm:rounded-[12px] border-[1.5px] bg-surface text-center text-base sm:text-lg font-bold text-ink transition-all focus:border-primary focus:shadow-[0_0_0_4px_var(--tint)] focus:outline-none",
                     otpError ? "border-rose-500" : "border-border",
                   )}
                 />
@@ -384,7 +459,7 @@ export function ForgotPasswordForm() {
             </div>
 
             {otpError && (
-              <p className="mb-3 text-[11.5px] font-semibold text-rose-500">
+              <p className="mb-3 text-[11.5px] font-semibold text-rose-500 text-center">
                 {otpError}
               </p>
             )}
@@ -396,10 +471,10 @@ export function ForgotPasswordForm() {
               <button
                 type="button"
                 onClick={handleResendOtp}
-                disabled={isTimerActive}
+                disabled={isTimerActive || isPending}
                 className={cn(
-                  "font-bold transition-colors",
-                  isTimerActive
+                  "font-bold transition-colors cursor-pointer",
+                  isTimerActive || isPending
                     ? "cursor-default text-ink-faint"
                     : "text-primary-dark hover:underline",
                 )}
@@ -411,7 +486,7 @@ export function ForgotPasswordForm() {
             <button
               type="submit"
               disabled={isPending}
-              className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-ink py-[14px] text-[15px] font-bold text-white transition-all duration-200 hover:bg-primary-dark hover:shadow-emerald disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-ink py-[14px] text-[15px] font-bold text-white transition-all duration-200 hover:bg-primary-dark hover:shadow-emerald disabled:opacity-60 cursor-pointer"
             >
               {isPending ? (
                 <>
@@ -434,7 +509,7 @@ export function ForgotPasswordForm() {
               رمز عبور تازه
             </h1>
             <p className="text-sm text-ink-faint">
-              رمز جدیدی انتخاب کنید. پس از ثبت، از همه‌ی دستگاه‌های دیگر خارج می‌شوید.
+              رمز جدیدی انتخاب کنید تا در پنل برای حسابتان ذخیره شود.
             </p>
           </div>
 
@@ -450,10 +525,12 @@ export function ForgotPasswordForm() {
                 <input
                   id="new-password"
                   type={showPassword ? "text" : "password"}
+                  disabled={isPending}
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
                     setPasswordError("");
+                    setGeneralError("");
                   }}
                   placeholder="حداقل ۸ کاراکتر"
                   autoComplete="new-password"
@@ -466,7 +543,7 @@ export function ForgotPasswordForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-faint hover:text-ink"
+                  className="absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-faint hover:text-ink cursor-pointer"
                   aria-label={showPassword ? "مخفی کردن رمز عبور" : "نمایش رمز عبور"}
                 >
                   {showPassword ? (
@@ -520,10 +597,12 @@ export function ForgotPasswordForm() {
                 <input
                   id="confirm-password"
                   type={showConfirmPassword ? "text" : "password"}
+                  disabled={isPending}
                   value={passwordConfirm}
                   onChange={(e) => {
                     setPasswordConfirm(e.target.value);
                     setConfirmError("");
+                    setGeneralError("");
                   }}
                   placeholder="رمز عبور را دوباره وارد کنید"
                   autoComplete="new-password"
@@ -536,7 +615,7 @@ export function ForgotPasswordForm() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword((prev) => !prev)}
-                  className="absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-faint hover:text-ink"
+                  className="absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-faint hover:text-ink cursor-pointer"
                   aria-label={
                     showConfirmPassword
                       ? "مخفی کردن رمز عبور"
@@ -573,7 +652,7 @@ export function ForgotPasswordForm() {
             <button
               type="submit"
               disabled={isPending}
-              className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-ink py-[14px] text-[15px] font-bold text-white transition-all duration-200 hover:bg-primary-dark hover:shadow-emerald disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-ink py-[14px] text-[15px] font-bold text-white transition-all duration-200 hover:bg-primary-dark hover:shadow-emerald disabled:opacity-60 cursor-pointer"
             >
               {isPending ? (
                 <>
@@ -595,16 +674,16 @@ export function ForgotPasswordForm() {
             <Check className="h-9 w-9 stroke-[2.5]" />
           </div>
           <h1 className="mb-2.5 text-[22px] font-extrabold text-ink">
-            رمز عبور شما تغییر کرد
+            رمز عبور شما با موفقیت تغییر کرد
           </h1>
           <p className="mb-6 text-sm leading-[1.9] text-ink-soft">
-            حالا می‌توانید با رمز جدید وارد حساب خود شوید.
+            رمز عبور جدید شما در سیستم ثبت شد. اکنون می‌توانید با رمز جدید وارد حساب کاربری خود شوید.
           </p>
           <Link
             href="/login"
             className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-ink py-[14px] text-[15px] font-bold text-white transition-all duration-200 hover:bg-primary-dark hover:shadow-emerald"
           >
-            ورود به حساب
+            ورود به حساب کاربری
           </Link>
         </div>
       )}

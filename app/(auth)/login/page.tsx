@@ -42,11 +42,11 @@ export default function LoginPage() {
               <MethodSwitch activeMethod={method} onMethodChange={setMethod} />
 
               <div className={cn(method === "password" ? "block" : "hidden")}>
-                <LoginForm onSubmit={handleLogin} />
+                <LoginForm />
               </div>
 
               <div className={cn(method === "otp" ? "block" : "hidden")}>
-                <OtpForm onVerify={handleLogin} />
+                <OtpForm />
               </div>
 
               <Divider />

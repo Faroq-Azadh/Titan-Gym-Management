@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Phone } from "lucide-react";
+import { AlertCircle, Loader2, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/input";
 import { useOtpInput } from "@/lib/hooks/use-otp-input";
@@ -14,15 +15,24 @@ import {
   type LoginOtpRequestFormValues,
 } from "@/lib/validations/login";
 import { normalizeDigits, toPersianDigits } from "@/lib/persian-digits";
+import { useAuth } from "@/lib/auth-context";
+import { ApiError } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
 interface OtpFormProps {
   onVerify?: (otp: string) => void;
+  onSuccess?: () => void;
 }
 
-export function OtpForm({ onVerify }: OtpFormProps) {
+export function OtpForm({ onVerify, onSuccess }: OtpFormProps) {
+  const router = useRouter();
+  const { requestOtp, verifyOtp } = useAuth();
+
   const [step, setStep] = useState<1 | 2>(1);
   const [target, setTarget] = useState("۰۹۱۲۳۴۵۶۷۸۹");
+  const [rawPhone, setRawPhone] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const { timerLabel, canResend, startTimer, resetTimer } = useOtpTimer();
   const {
@@ -34,7 +44,7 @@ export function OtpForm({ onVerify }: OtpFormProps) {
     handlePaste,
     reset,
     focusInput,
-  } = useOtpInput();
+  } = useOtpInput(6);
   const [otpError, setOtpError] = useState<string | null>(null);
 
   const requestForm = useForm<LoginOtpRequestFormValues>({
@@ -51,21 +61,40 @@ export function OtpForm({ onVerify }: OtpFormProps) {
     }
   }, [step, focusInput]);
 
-  const handleRequestOtp = (values: LoginOtpRequestFormValues) => {
-    setTarget(toPersianDigits(normalizeDigits(values.phone)));
-    setStep(2);
-    setOtpError(null);
-    reset();
-    startTimer();
+  const handleRequestOtp = async (values: LoginOtpRequestFormValues) => {
+    const normalized = normalizeDigits(values.phone.trim());
+    setRawPhone(normalized);
+    setApiError(null);
+    setIsLoading(true);
+
+    try {
+      await requestOtp({ identifier: normalized });
+      setTarget(toPersianDigits(normalized));
+      setStep(2);
+      setOtpError(null);
+      reset();
+      startTimer();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setApiError(err.detail || "ارسال پیامک با خطا مواجه شد.");
+      } else if (err instanceof Error) {
+        setApiError(err.message);
+      } else {
+        setApiError("ارسال کد تایید با خطا مواجه شد. لطفاً مجدداً تلاش کنید.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleBackToStep1 = () => {
     setStep(1);
     setOtpError(null);
+    setApiError(null);
     reset();
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     const result = loginOtpVerifySchema.safeParse({ otp: otpValue });
     if (!result.success) {
       setOtpError(result.error.issues[0].message);
@@ -73,19 +102,75 @@ export function OtpForm({ onVerify }: OtpFormProps) {
       return;
     }
     setOtpError(null);
-    onVerify?.(otpValue);
+    setApiError(null);
+
+    if (onVerify) {
+      onVerify(otpValue);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const res = await verifyOtp({
+        identifier: rawPhone,
+        code: normalizeDigits(otpValue),
+      });
+
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        const user = "user" in res ? res.user : null;
+        if (user?.role === "OWNER" || user?.role === "COACH") {
+          router.push("/admin");
+        } else {
+          router.push("/admin");
+        }
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setOtpError(err.detail || "کد وارد شده نامعتبر یا منقضی شده است.");
+      } else if (err instanceof Error) {
+        setOtpError(err.message);
+      } else {
+        setOtpError("تأیید کد با خطا مواجه شد.");
+      }
+      focusInput(0);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleResend = () => {
-    if (!canResend) return;
+  const handleResend = async () => {
+    if (!canResend || !rawPhone || isLoading) return;
     setOtpError(null);
-    reset();
-    resetTimer();
+    setApiError(null);
+    setIsLoading(true);
+
+    try {
+      await requestOtp({ identifier: rawPhone });
+      reset();
+      resetTimer();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setApiError(err.detail || "ارسال مجدد کد با خطا مواجه شد.");
+      } else {
+        setApiError("ارسال مجدد با خطا مواجه شد.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (step === 1) {
     return (
       <form onSubmit={requestForm.handleSubmit(handleRequestOtp)} noValidate>
+        {apiError && (
+          <div className="mb-4 flex items-center gap-2.5 rounded-[10px] border border-rose-200 bg-rose-50/90 p-3 text-[13px] text-rose-700 animate-in fade-in duration-200">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+            <span>{apiError}</span>
+          </div>
+        )}
+
         <div className="mb-4">
           <label
             htmlFor="login-otp-id"
@@ -99,6 +184,7 @@ export function OtpForm({ onVerify }: OtpFormProps) {
             inputMode="numeric"
             dir="ltr"
             maxLength={11}
+            disabled={isLoading}
             className="text-right"
             placeholder="۰۹۱۲۳۴۵۶۷۸۹"
             autoComplete="tel"
@@ -122,26 +208,42 @@ export function OtpForm({ onVerify }: OtpFormProps) {
             </p>
           )}
           <p className="mt-1.5 text-xs text-ink-faint">
-            یک کد ۵ رقمی برای شما ارسال می‌شود
+            یک کد ۶ رقمی برای شما ارسال می‌شود
           </p>
         </div>
-        <Button type="submit">ارسال کد تایید</Button>
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              در حال ارسال کد...
+            </span>
+          ) : (
+            "ارسال کد تایید"
+          )}
+        </Button>
       </form>
     );
   }
 
   return (
     <div>
+      {apiError && (
+        <div className="mb-4 flex items-center gap-2.5 rounded-[10px] border border-rose-200 bg-rose-50/90 p-3 text-[13px] text-rose-700 animate-in fade-in duration-200">
+          <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+          <span>{apiError}</span>
+        </div>
+      )}
+
       <div className="mb-5 flex items-center justify-between rounded-[10px] bg-tint px-3.5 py-[11px] text-[13.5px] text-ink">
         <span>
           کد ارسال شد به <b className="font-bold">{target}</b>
         </span>
         <button
           type="button"
-          className="text-[12.5px] font-bold text-primary-dark"
+          className="text-[12.5px] font-bold text-primary-dark hover:underline cursor-pointer"
           onClick={handleBackToStep1}
         >
-          تغییر
+          تغییر شماره
         </button>
       </div>
 
@@ -149,12 +251,13 @@ export function OtpForm({ onVerify }: OtpFormProps) {
         <label className="mb-2 block text-[13.5px] font-semibold text-ink">
           کد تایید را وارد کنید
         </label>
-        <div className="mb-2 flex items-center justify-center gap-2 sm:gap-2.5" dir="ltr">
+        <div className="mb-2 flex items-center justify-center gap-1.5 sm:gap-2.5" dir="ltr">
           {values.map((value, index) => (
             <input
               key={index}
               ref={setRef(index)}
               type="text"
+              disabled={isLoading}
               inputMode="numeric"
               autoComplete={index === 0 ? "one-time-code" : "off"}
               maxLength={1}
@@ -162,7 +265,7 @@ export function OtpForm({ onVerify }: OtpFormProps) {
               aria-label={`رقم ${index + 1} کد تایید`}
               aria-invalid={!!otpError}
               className={cn(
-                "h-11 w-11 sm:h-12 sm:w-12 rounded-[12px] border-[1.5px] border-border bg-surface text-center text-lg font-bold text-ink outline-none transition-all duration-200 ease-in-out focus:border-primary focus:shadow-[0_0_0_4px_var(--tint)]",
+                "h-11 w-10 sm:h-12 sm:w-11 rounded-[10px] sm:rounded-[12px] border-[1.5px] border-border bg-surface text-center text-base sm:text-lg font-bold text-ink outline-none transition-all duration-200 ease-in-out focus:border-primary focus:shadow-[0_0_0_4px_var(--tint)]",
                 otpError && "border-rose-500",
               )}
               onChange={(event) => handleChange(index, event.target.value)}
@@ -174,7 +277,7 @@ export function OtpForm({ onVerify }: OtpFormProps) {
             />
           ))}
         </div>
-        {otpError && <p className="mt-1.5 text-xs text-rose-500">{otpError}</p>}
+        {otpError && <p className="mt-1.5 text-xs text-rose-500 text-center">{otpError}</p>}
       </div>
 
       <div className="mb-[22px] mt-2.5 flex items-center justify-between">
@@ -182,18 +285,25 @@ export function OtpForm({ onVerify }: OtpFormProps) {
         <button
           type="button"
           className={cn(
-            "text-[13px] font-bold text-primary-dark",
-            !canResend && "cursor-default text-ink-faint",
+            "text-[13px] font-bold text-primary-dark transition-colors",
+            (!canResend || isLoading) && "cursor-default text-ink-faint",
           )}
           onClick={handleResend}
-          disabled={!canResend}
+          disabled={!canResend || isLoading}
         >
           ارسال مجدد کد
         </button>
       </div>
 
-      <Button type="button" onClick={handleVerify}>
-        تایید و ورود
+      <Button type="button" onClick={handleVerify} disabled={isLoading}>
+        {isLoading ? (
+          <span className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            در حال اعتبارسنجی...
+          </span>
+        ) : (
+          "تایید و ورود"
+        )}
       </Button>
     </div>
   );

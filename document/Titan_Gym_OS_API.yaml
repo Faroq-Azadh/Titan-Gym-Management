@@ -1,0 +1,5881 @@
+openapi: 3.0.3
+info:
+  title: Titan Gym OS API
+  version: 1.0.0
+  description: API documentation for Titan Gym OS
+paths:
+  /attendance/check-in/:
+    post:
+      operationId: attendance_check_in_create
+      description: POST /attendance/check-in/ — once per Tehran calendar day.
+      summary: Self check-in for today
+      tags:
+      - attendance
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceLog'
+          description: ''
+  /attendance/my-checkins/:
+    get:
+      operationId: attendance_my_checkins_list
+      description: GET /attendance/my-checkins/ — own check-in history, newest first.
+      tags:
+      - attendance
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AttendanceLog'
+          description: ''
+  /attendance/staff-check-in/:
+    post:
+      operationId: attendance_staff_check_in_create
+      description: |-
+        POST /attendance/staff-check-in/ — front desk (owner or coach) logs a
+        member in: {member_id}. Same once-per-day rule as self check-in, so
+        the two paths can't double-book the same visit.
+      summary: Front-desk check-in of a member
+      tags:
+      - attendance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffCheckIn'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StaffCheckIn'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StaffCheckIn'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffAttendanceLog'
+          description: ''
+  /billing/my-payments/:
+    get:
+      operationId: billing_my_payments_list
+      description: GET /billing/my-payments/ — own payment history, newest first.
+      tags:
+      - billing
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+          description: ''
+  /billing/payments/:
+    get:
+      operationId: billing_payments_list
+      description: |-
+        GET  /billing/payments/  — owner: all gym payments (payments.html)
+        POST /billing/payments/  — owner: record a manual payment
+        ?member=<uuid> filters to one member's history.
+      summary: List all gym payments
+      parameters:
+      - in: query
+        name: member
+        schema:
+          type: string
+        description: Filter to one member's payment history (UUID).
+      tags:
+      - billing
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentAdmin'
+          description: ''
+    post:
+      operationId: billing_payments_create
+      description: |-
+        GET  /billing/payments/  — owner: all gym payments (payments.html)
+        POST /billing/payments/  — owner: record a manual payment
+        ?member=<uuid> filters to one member's history.
+      summary: Record a manual payment
+      tags:
+      - billing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCreateResponse'
+          description: ''
+  /billing/payments/{id}/refund/:
+    post:
+      operationId: billing_payments_refund_create
+      description: |-
+        POST /billing/payments/{id}/refund/ — owner marks a payment refunded.
+        No row deletion — a refund is a status change, so the record stays
+        auditable.
+      summary: Mark a payment refunded
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - billing
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentAdmin'
+          description: ''
+  /classes/:
+    get:
+      operationId: classes_list
+      description: 'GET/POST /classes/ — owner: weekly class templates.'
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GymClass'
+          description: ''
+    post:
+      operationId: classes_create
+      description: 'GET/POST /classes/ — owner: weekly class templates.'
+      summary: Create a class
+      tags:
+      - classes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClassWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClassWrite'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GymClass'
+          description: 'Class created — {detail: str, class: GymClassSerializer}'
+  /classes/{id}/:
+    get:
+      operationId: classes_retrieve
+      description: |-
+        GET/PATCH /classes/{id}/ — owner: edit template. No DELETE — bookings
+        reference it; set is_active=False to retire a slot.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GymClass'
+          description: ''
+    put:
+      operationId: classes_update
+      description: |-
+        GET/PATCH /classes/{id}/ — owner: edit template. No DELETE — bookings
+        reference it; set is_active=False to retire a slot.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: classes_partial_update
+      description: |-
+        GET/PATCH /classes/{id}/ — owner: edit template. No DELETE — bookings
+        reference it; set is_active=False to retire a slot.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /classes/available/:
+    get:
+      operationId: classes_available_retrieve
+      description: |-
+        GET /classes/available/ — member (classes-booking.html): the next 7 days'
+        occurrences with per-date fill and whether the member already booked, plus
+        KPIs (open-to-book count, classes attended this month).
+      summary: Next 7 days' bookable occurrences + KPIs
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailableClasses'
+          description: ''
+  /classes/bookings/:
+    get:
+      operationId: classes_bookings_retrieve
+      description: |-
+        GET /classes/bookings/ — owner roster (admin-bookings.html).
+        ?status=PENDING|CONFIRMED|WAITLISTED|CANCELED|REJECTED  ?date=YYYY-MM-DD
+      summary: Owner bookings roster + summary
+      parameters:
+      - in: query
+        name: date
+        schema:
+          type: string
+        description: Filter to one date, YYYY-MM-DD.
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Search member first/last name.
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Comma-separated statuses, e.g. PENDING or CANCELED,REJECTED.
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingRoster'
+          description: ''
+  /classes/bookings/{id}/approve/:
+    post:
+      operationId: classes_bookings_approve_create
+      description: 'POST /classes/bookings/{id}/approve/ — owner: PENDING → CONFIRMED.'
+      summary: Approve a pending booking
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingApproveResponse'
+          description: ''
+  /classes/bookings/{id}/cancel/:
+    post:
+      operationId: classes_bookings_cancel_create
+      description: |-
+        POST /classes/bookings/{id}/cancel/ — member cancels own booking.
+        Frees a seat if it was holding one, so the waitlist is promoted.
+      summary: Cancel own booking
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingCancelResponse'
+          description: ''
+  /classes/bookings/{id}/reject/:
+    post:
+      operationId: classes_bookings_reject_create
+      description: |-
+        POST /classes/bookings/{id}/reject/ — owner rejects a PENDING/CONFIRMED
+        booking. Frees a seat, so the earliest waitlisted member is promoted.
+      summary: Reject a pending/confirmed booking
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingRejectResponse'
+          description: ''
+  /classes/bookings/create/:
+    post:
+      operationId: classes_bookings_create_create
+      description: POST /classes/bookings/ — member books {class_id, date}.
+      summary: Book a class occurrence
+      tags:
+      - classes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingCreateResponse'
+          description: ''
+  /classes/calendar/:
+    get:
+      operationId: classes_calendar_retrieve
+      description: |-
+        GET /classes/calendar/ — owner weekly grid + KPIs (admin-classes.html):
+        active classes this week, full classes, avg capacity fill %, coaches involved.
+      summary: Owner weekly calendar grid + KPIs
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassCalendar'
+          description: ''
+  /classes/my-bookings/:
+    get:
+      operationId: classes_my_bookings_list
+      description: 'GET /classes/my-bookings/ — member: own active bookings, soonest
+        first.'
+      summary: Member's own active bookings
+      tags:
+      - classes
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MyBookingRow'
+          description: ''
+  /coaches/:
+    get:
+      operationId: coaches_team_list
+      description: |-
+        GET /coaches/ — owner: the team table + KPIs (admin-coaches.html).
+        ?type=coach|staff  ?search=<name>
+
+        Note: was previously a plain ListAPIView returning a bare array — now
+        returns {"summary": {...}, "coaches": [...]}. If anything already
+        calls this expecting a bare list, that call site needs updating too.
+
+        No "امتیاز" (rating): there's no review/rating model in the schema
+        yet, so that mockup column has nothing real to bind to. Left out
+        rather than invented — say the word if you want that built.
+      summary: 'Owner: coach/staff team list with KPIs'
+      tags:
+      - coaches
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachTeamList'
+          description: ''
+  /coaches/{id}/:
+    get:
+      operationId: coaches_retrieve
+      description: |-
+        GET   /coaches/{id}/ — owner: coach detail
+        PATCH /coaches/{id}/ — owner: edit profile fields / is_active.
+        No DELETE — attendance history, plans and members reference the
+        coach; deactivate instead.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - coaches
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachDetail'
+          description: ''
+    put:
+      operationId: coaches_update
+      description: |-
+        GET   /coaches/{id}/ — owner: coach detail
+        PATCH /coaches/{id}/ — owner: edit profile fields / is_active.
+        No DELETE — attendance history, plans and members reference the
+        coach; deactivate instead.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - coaches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoachDetailUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CoachDetailUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CoachDetailUpdate'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachDetailUpdate'
+          description: ''
+    patch:
+      operationId: coaches_partial_update
+      description: |-
+        GET   /coaches/{id}/ — owner: coach detail
+        PATCH /coaches/{id}/ — owner: edit profile fields / is_active.
+        No DELETE — attendance history, plans and members reference the
+        coach; deactivate instead.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - coaches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCoachDetailUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCoachDetailUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCoachDetailUpdate'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachDetailUpdate'
+          description: ''
+  /coaches/add_coach/:
+    post:
+      operationId: coaches_add_coach_create
+      description: POST /coaches/add_coach/ — OWNER creates a COACH user + CoachProfile
+        together.
+      tags:
+      - coaches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoachCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CoachCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CoachCreate'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachCreate'
+          description: ''
+  /coaches/dashboard/:
+    get:
+      operationId: coaches_dashboard_retrieve
+      description: GET /coaches/dashboard/ — the coach home screen aggregate.
+      summary: Coach home screen aggregate
+      tags:
+      - coaches
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachDashboard'
+          description: ''
+  /coaches/me/:
+    get:
+      operationId: coaches_me_retrieve
+      description: |-
+        GET   /coaches/me/  — coach: own profile (coach-profile.html)
+        PATCH /coaches/me/  — coach: self-edit, limited fields; email syncs
+        to the login account, position/is_active stay owner-only
+      tags:
+      - coaches
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachDetail'
+          description: ''
+    put:
+      operationId: coaches_me_update
+      description: |-
+        GET   /coaches/me/  — coach: own profile (coach-profile.html)
+        PATCH /coaches/me/  — coach: self-edit, limited fields; email syncs
+        to the login account, position/is_active stay owner-only
+      tags:
+      - coaches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoachSelfUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CoachSelfUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CoachSelfUpdate'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachSelfUpdate'
+          description: ''
+    patch:
+      operationId: coaches_me_partial_update
+      description: |-
+        GET   /coaches/me/  — coach: own profile (coach-profile.html)
+        PATCH /coaches/me/  — coach: self-edit, limited fields; email syncs
+        to the login account, position/is_active stay owner-only
+      tags:
+      - coaches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCoachSelfUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCoachSelfUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCoachSelfUpdate'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachSelfUpdate'
+          description: ''
+  /coaches/my-students/:
+    get:
+      operationId: coaches_my_students_list
+      description: |-
+        GET /coaches/my-students/ — coach-students.html table.
+        ?status=all|active|expiring|expired  ?search=<name>
+      summary: Coach's students table
+      tags:
+      - coaches
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CoachStudentRow'
+          description: ''
+  /coaches/performance/:
+    get:
+      operationId: coaches_performance_retrieve
+      description: |-
+        GET /coaches/performance/ — performance.html aggregate.
+        ?days=30|90|365 (default 30). Null-safe when the coach has no data yet.
+      summary: Coach performance report
+      tags:
+      - coaches
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachPerformance'
+          description: ''
+  /exercises/:
+    get:
+      operationId: exercises_list
+      description: |-
+        GET /exercises/ — active exercises of the caller's own gym.
+        Used by both the member app's exercise picker and the coach's
+        program-builder exercise picker — was member-only before, which
+        meant a coach couldn't browse the library to build a plan at all.
+      tags:
+      - exercises
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExercisePicker'
+          description: ''
+  /gyms/dashboard/:
+    get:
+      operationId: gyms_dashboard_retrieve
+      description: GET /gyms/dashboard/ — owner home screen (admin.html).
+      summary: Owner home screen aggregate
+      tags:
+      - gyms
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnerDashboard'
+          description: ''
+  /gyms/me/:
+    get:
+      operationId: gyms_me_retrieve
+      description: |-
+        GET  /api/v1/gyms/me/  -> the logged-in owner's gym, nested with
+                                  settings + subscription (read-only)
+        PATCH /api/v1/gyms/me/ -> update identity fields only (see
+                                  GymDetailSerializer.read_only_fields)
+      tags:
+      - gyms
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GymDetail'
+          description: ''
+    put:
+      operationId: gyms_me_update
+      description: |-
+        GET  /api/v1/gyms/me/  -> the logged-in owner's gym, nested with
+                                  settings + subscription (read-only)
+        PATCH /api/v1/gyms/me/ -> update identity fields only (see
+                                  GymDetailSerializer.read_only_fields)
+      tags:
+      - gyms
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GymDetail'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GymDetail'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GymDetail'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GymDetail'
+          description: ''
+    patch:
+      operationId: gyms_me_partial_update
+      description: |-
+        GET  /api/v1/gyms/me/  -> the logged-in owner's gym, nested with
+                                  settings + subscription (read-only)
+        PATCH /api/v1/gyms/me/ -> update identity fields only (see
+                                  GymDetailSerializer.read_only_fields)
+      tags:
+      - gyms
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedGymDetail'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedGymDetail'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedGymDetail'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GymDetail'
+          description: ''
+  /gyms/me/settings/:
+    get:
+      operationId: gyms_me_settings_retrieve
+      description: GET/PATCH /api/v1/gyms/me/settings/ — timezone, currency, working
+        hours.
+      tags:
+      - gyms
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GymSettings'
+          description: ''
+    put:
+      operationId: gyms_me_settings_update
+      description: GET/PATCH /api/v1/gyms/me/settings/ — timezone, currency, working
+        hours.
+      tags:
+      - gyms
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GymSettings'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GymSettings'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GymSettings'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GymSettings'
+          description: ''
+    patch:
+      operationId: gyms_me_settings_partial_update
+      description: GET/PATCH /api/v1/gyms/me/settings/ — timezone, currency, working
+        hours.
+      tags:
+      - gyms
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedGymSettings'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedGymSettings'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedGymSettings'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GymSettings'
+          description: ''
+  /gyms/plans/:
+    get:
+      operationId: gyms_plans_list
+      description: |-
+        GET /api/v1/plans/ — public. One source of truth for pricing/limits
+        so the frontend never hardcodes numbers that can drift from what the
+        backend actually enforces.
+      tags:
+      - gyms
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Plan'
+          description: ''
+  /gyms/register/:
+    post:
+      operationId: gyms_register_create
+      description: |-
+        Public — this is one of the few endpoints in the whole app that must
+        stay open to anonymous users, since nobody is logged in yet when
+        they hit it. Don't "fix" this permission later without checking here
+        first.
+      tags:
+      - gyms
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GymRegister'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GymRegister'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GymRegister'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GymRegister'
+          description: ''
+  /gyms/reports/:
+    get:
+      operationId: gyms_reports_retrieve
+      description: |-
+        GET /gyms/reports/ — owner reports (reports.html).
+        ?months=6 (default 6) for monthly trend data.
+      summary: Owner reports — revenue, growth, attendance, and plan trends
+      tags:
+      - gyms
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reports'
+          description: ''
+  /members/:
+    get:
+      operationId: members_list
+      description: |-
+        GET  /members/ — ?status=active|expiring|expired|no_membership  ?search=<name>
+        POST /members/ — create a member (+ optional login account)
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: یک شماره صفحه‌ در مجموعه نتایج صفحه‌بندی شده.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: تعداد نتایج برای نمایش در هر صفحه.
+        schema:
+          type: integer
+      tags:
+      - members
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMemberListList'
+          description: ''
+    post:
+      operationId: members_create
+      description: |-
+        GET  /members/ — ?status=active|expiring|expired|no_membership  ?search=<name>
+        POST /members/ — create a member (+ optional login account)
+      tags:
+      - members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MemberCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MemberCreate'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberCreate'
+          description: ''
+  /members/{id}/:
+    get:
+      operationId: members_retrieve
+      description: |-
+        GET/PATCH /members/{id}/ — owner-only. A member viewing their own
+        record goes through MemberMeView instead, not this one.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - members
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberDetail'
+          description: ''
+    put:
+      operationId: members_update
+      description: |-
+        GET/PATCH /members/{id}/ — owner-only. A member viewing their own
+        record goes through MemberMeView instead, not this one.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberDetail'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MemberDetail'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MemberDetail'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberDetail'
+          description: ''
+    patch:
+      operationId: members_partial_update
+      description: |-
+        GET/PATCH /members/{id}/ — owner-only. A member viewing their own
+        record goes through MemberMeView instead, not this one.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberDetail'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberDetail'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberDetail'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberDetail'
+          description: ''
+  /members/dashboard/:
+    get:
+      operationId: members_dashboard_retrieve
+      description: GET /members/dashboard/ — the athlete home screen aggregate.
+      summary: Athlete home screen aggregate
+      tags:
+      - members
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberDashboard'
+          description: ''
+  /members/me/:
+    get:
+      operationId: members_me_retrieve
+      description: |-
+        GET   /members/me/  — own profile
+        PATCH /members/me/  — self-edit, limited fields (MemberSelfUpdateSerializer);
+        unknown fields like is_active are ignored, not applied
+      tags:
+      - members
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberDetail'
+          description: ''
+    put:
+      operationId: members_me_update
+      description: |-
+        GET   /members/me/  — own profile
+        PATCH /members/me/  — self-edit, limited fields (MemberSelfUpdateSerializer);
+        unknown fields like is_active are ignored, not applied
+      tags:
+      - members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberSelfUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MemberSelfUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MemberSelfUpdate'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberSelfUpdate'
+          description: ''
+    patch:
+      operationId: members_me_partial_update
+      description: |-
+        GET   /members/me/  — own profile
+        PATCH /members/me/  — self-edit, limited fields (MemberSelfUpdateSerializer);
+        unknown fields like is_active are ignored, not applied
+      tags:
+      - members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberSelfUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberSelfUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberSelfUpdate'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberSelfUpdate'
+          description: ''
+  /members/my-membership/:
+    get:
+      operationId: members_my_membership_retrieve
+      description: GET /members/my-membership/ — the membership screen aggregate.
+      summary: Membership screen aggregate
+      tags:
+      - members
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberMembership'
+          description: ''
+  /members/my-students/:
+    post:
+      operationId: members_my_students_create
+      description: POST /members/my-students/ — coach creates a member assigned to
+        themselves.
+      tags:
+      - members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoachMemberCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CoachMemberCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CoachMemberCreate'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachMemberCreate'
+          description: ''
+  /members/plans/:
+    get:
+      operationId: members_plans_list
+      description: |-
+        GET  /members/plans/ — owner: plan cards + table (admin-plans screen)
+        POST /members/plans/ — owner: add a plan
+      tags:
+      - members
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+    post:
+      operationId: members_plans_create
+      description: |-
+        GET  /members/plans/ — owner: plan cards + table (admin-plans screen)
+        POST /members/plans/ — owner: add a plan
+      tags:
+      - members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+  /members/plans/{id}/:
+    get:
+      operationId: members_plans_retrieve
+      description: |-
+        GET/PATCH /members/plans/{id}/ — owner: edit a plan. No DELETE —
+        Membership.plan is PROTECT; retire a plan with is_active=false
+        instead of deleting rows that history points at.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - members
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+    put:
+      operationId: members_plans_update
+      description: |-
+        GET/PATCH /members/plans/{id}/ — owner: edit a plan. No DELETE —
+        Membership.plan is PROTECT; retire a plan with is_active=false
+        instead of deleting rows that history points at.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+    patch:
+      operationId: members_plans_partial_update
+      description: |-
+        GET/PATCH /members/plans/{id}/ — owner: edit a plan. No DELETE —
+        Membership.plan is PROTECT; retire a plan with is_active=false
+        instead of deleting rows that history points at.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMembershipPlan'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMembershipPlan'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMembershipPlan'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+  /messages/conversations/:
+    get:
+      operationId: messages_conversations_list
+      description: |-
+        GET  /messages/conversations/ — sidebar list (?search=)
+        POST /messages/conversations/ — open/reuse a thread
+             coach body: {member_id}; member: empty body → assigned coach
+      tags:
+      - messages
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConversationList'
+          description: ''
+    post:
+      operationId: messages_conversations_create
+      description: |-
+        GET  /messages/conversations/ — sidebar list (?search=)
+        POST /messages/conversations/ — open/reuse a thread
+             coach body: {member_id}; member: empty body → assigned coach
+      tags:
+      - messages
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConversationCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConversationCreate'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationCreate'
+          description: ''
+  /messages/conversations/{id}/messages/:
+    get:
+      operationId: messages_conversations_messages_list
+      description: |-
+        GET  /messages/conversations/<id>/messages/ — thread (oldest → newest)
+        POST /messages/conversations/<id>/messages/ — send {body}
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - messages
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+          description: ''
+    post:
+      operationId: messages_conversations_messages_create
+      description: |-
+        GET  /messages/conversations/<id>/messages/ — thread (oldest → newest)
+        POST /messages/conversations/<id>/messages/ — send {body}
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - messages
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageCreate'
+          description: ''
+  /messages/conversations/{id}/read/:
+    post:
+      operationId: messages_conversations_read_create
+      description: POST /messages/conversations/<id>/read/ — mark peer messages as
+        read.
+      summary: Mark the peer's messages in this conversation as read
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - messages
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkConversationReadResponse'
+          description: ''
+  /notifications/:
+    get:
+      operationId: notifications_list
+      description: |-
+        GET /notifications/ — the member's own feed.
+        Optional filters: ?unread=1 (only unread), ?type=TRAINING (one type).
+      tags:
+      - notifications
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+          description: ''
+  /notifications/{id}/read/:
+    post:
+      operationId: notifications_read_create
+      description: POST /notifications/{id}/read/ — idempotent; foreign ids 404, never
+        leak.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Notification'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /notifications/read-all/:
+    post:
+      operationId: notifications_read_all_create
+      description: POST /notifications/read-all/ — one UPDATE, returns how many flipped.
+      summary: Mark all of the member's unread notifications as read
+      tags:
+      - notifications
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkAllReadResponse'
+          description: ''
+  /progress/entries/:
+    get:
+      operationId: progress_entries_list
+      description: GET/POST /progress/entries/ — member comes from the JWT, never
+        the body.
+      tags:
+      - progress
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProgressEntry'
+          description: ''
+    post:
+      operationId: progress_entries_create
+      description: GET/POST /progress/entries/ — member comes from the JWT, never
+        the body.
+      tags:
+      - progress
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgressEntry'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProgressEntry'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProgressEntry'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressEntry'
+          description: ''
+  /progress/entries/{id}/:
+    get:
+      operationId: progress_entries_retrieve
+      description: GET/PATCH/DELETE /progress/entries/<id>/ — history-table row edit
+        & delete.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - progress
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressEntry'
+          description: ''
+    put:
+      operationId: progress_entries_update
+      description: GET/PATCH/DELETE /progress/entries/<id>/ — history-table row edit
+        & delete.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - progress
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgressEntry'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProgressEntry'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProgressEntry'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressEntry'
+          description: ''
+    patch:
+      operationId: progress_entries_partial_update
+      description: GET/PATCH/DELETE /progress/entries/<id>/ — history-table row edit
+        & delete.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - progress
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProgressEntry'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProgressEntry'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProgressEntry'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressEntry'
+          description: ''
+    delete:
+      operationId: progress_entries_destroy
+      description: GET/PATCH/DELETE /progress/entries/<id>/ — history-table row edit
+        & delete.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - progress
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /progress/stats/:
+    get:
+      operationId: progress_stats_retrieve
+      description: GET /progress/stats/ — progress.html aggregate. Every block null-safe
+        when empty.
+      tags:
+      - progress
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /progress/strength-records/:
+    get:
+      operationId: progress_strength_records_list
+      description: GET/POST /progress/strength-records/ — PR list / log.
+      tags:
+      - progress
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StrengthRecord'
+          description: ''
+    post:
+      operationId: progress_strength_records_create
+      description: GET/POST /progress/strength-records/ — PR list / log.
+      tags:
+      - progress
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StrengthRecord'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StrengthRecord'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StrengthRecord'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrengthRecord'
+          description: ''
+  /users/google/:
+    post:
+      operationId: users_google_create
+      description: |-
+        POST /users/google/ — body: {"id_token": "<credential from Google Identity Services>"}
+
+        Google's current Identity Services SDK (google.accounts.id — the
+        only non-deprecated one) hands the frontend a JWT it calls
+        "credential", which is an ID token, not an OAuth access token.
+        dj-rest-auth's SocialLoginSerializer only enters its token-exchange
+        path when access_token (or code) is present, so an id_token-only
+        request was being rejected outright with "access_token or code is
+        required" before Google was ever contacted. We mirror id_token into
+        access_token below so the serializer proceeds — dj-rest-auth then
+        special-cases provider_id == "google" to verify the id_token locally
+        against Google's public keys rather than calling Google's userinfo
+        endpoint with it as a bearer token, which is what a legacy
+        access_token-only request still falls back to.
+
+        Also wraps validation in try/except: any failure on Google's side
+        (expired/tampered token, wrong audience, userinfo fetch failing)
+        raises allauth's OAuth2Error, which dj-rest-auth does not catch —
+        that was surfacing as a raw unhandled 500 instead of a normal 400.
+
+        Still accepts the legacy {"access_token": "..."} shape too.
+      summary: Login/register with Google
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleLoginRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GoogleLoginRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GoogleLoginRequest'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: Login successful — user details returned, JWT set via httpOnly
+            cookies.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+  /users/login/:
+    post:
+      operationId: users_login_create
+      description: |-
+        Check the credentials and return the REST Token
+        if the credentials are valid and authenticated.
+        Calls Django Auth login method to register User ID
+        in Django session framework
+
+        Accept the following POST parameters: username, password
+        Return the REST Framework Token Object's key.
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Login'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Login'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JWT'
+          description: ''
+  /users/logout/:
+    post:
+      operationId: users_logout_create
+      description: |-
+        Calls Django logout method and delete the Token object
+        assigned to the current User object.
+
+        Accepts/Returns nothing.
+      tags:
+      - users
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestAuthDetail'
+          description: ''
+  /users/me/:
+    get:
+      operationId: users_me_retrieve
+      description: |-
+        Reads and updates UserModel fields
+        Accepts GET, PUT, PATCH methods.
+
+        Default accepted fields: username, first_name, last_name
+        Default display fields: pk, username, email, first_name, last_name
+        Read-only fields: pk, email
+
+        Returns UserModel fields.
+      tags:
+      - users
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    put:
+      operationId: users_me_update
+      description: |-
+        Reads and updates UserModel fields
+        Accepts GET, PUT, PATCH methods.
+
+        Default accepted fields: username, first_name, last_name
+        Default display fields: pk, username, email, first_name, last_name
+        Read-only fields: pk, email
+
+        Returns UserModel fields.
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/User'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    patch:
+      operationId: users_me_partial_update
+      description: |-
+        Reads and updates UserModel fields
+        Accepts GET, PUT, PATCH methods.
+
+        Default accepted fields: username, first_name, last_name
+        Default display fields: pk, username, email, first_name, last_name
+        Read-only fields: pk, email
+
+        Returns UserModel fields.
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUser'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /users/otp/request/:
+    post:
+      operationId: users_otp_request_create
+      summary: Request an OTP code for login
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OTPRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OTPRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+  /users/otp/verify/:
+    post:
+      operationId: users_otp_verify_create
+      summary: Verify OTP and log in
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPVerify'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OTPVerify'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OTPVerify'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OTPVerifyNotFoundResponse'
+          description: ''
+  /users/password/change/:
+    post:
+      operationId: users_password_change_create
+      description: |-
+        Calls Django Auth SetPasswordForm save method.
+
+        Accepts the following POST parameters: new_password1, new_password2
+        Returns the success/fail message.
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestAuthDetail'
+          description: ''
+  /users/password/forgot/confirm/:
+    post:
+      operationId: users_password_forgot_confirm_create
+      description: 'POST /users/password/forgot/confirm/ — step 3: set new password.'
+      summary: 'Forgot password — step 3: set new password'
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordConfirm'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordConfirm'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordConfirm'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+  /users/password/forgot/request/:
+    post:
+      operationId: users_password_forgot_request_create
+      description: 'POST /users/password/forgot/request/ — step 1: send the OTP.'
+      summary: 'Forgot password — step 1: send OTP'
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+  /users/password/forgot/verify/:
+    post:
+      operationId: users_password_forgot_verify_create
+      description: 'POST /users/password/forgot/verify/ — step 2: verify OTP → reset_token.'
+      summary: 'Forgot password — step 2: verify OTP'
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordVerify'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordVerify'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordVerify'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForgotPasswordVerifyResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+          description: ''
+  /users/token/refresh/:
+    post:
+      operationId: users_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /workouts/my-plan/:
+    get:
+      operationId: workouts_my_plan_retrieve
+      description: |-
+        GET /workouts/my-plan/ — the member's active plan with nested
+        days/exercises. Latest active wins: the "only one active plan" rule
+        is enforced at coach plan creation (older plans get deactivated).
+      tags:
+      - workouts
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutPlanDetail'
+          description: ''
+  /workouts/plans/:
+    get:
+      operationId: workouts_plans_list
+      description: |-
+        GET  /workouts/plans/  — coach: own authored plans (newest first)
+        POST /workouts/plans/  — coach: build a plan (nested days + exercises)
+                                 and assign it; the member's previous active
+                                 plan is deactivated in the same transaction.
+      tags:
+      - workouts
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkoutPlanList'
+          description: ''
+    post:
+      operationId: workouts_plans_create
+      description: |-
+        GET  /workouts/plans/  — coach: own authored plans (newest first)
+        POST /workouts/plans/  — coach: build a plan (nested days + exercises)
+                                 and assign it; the member's previous active
+                                 plan is deactivated in the same transaction.
+      tags:
+      - workouts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkoutPlanCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkoutPlanCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkoutPlanCreate'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutPlanCreate'
+          description: ''
+  /workouts/plans/{id}/:
+    get:
+      operationId: workouts_plans_retrieve
+      description: |-
+        GET   /workouts/plans/{id}/ — coach: plan detail with days/exercises
+        PATCH /workouts/plans/{id}/ — coach: edit header fields (title, dates,
+        notes, is_active). No DELETE — retire with is_active=false; plan
+        history stays attached to the member.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - workouts
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutPlanCoachDetail'
+          description: ''
+    put:
+      operationId: workouts_plans_update
+      description: |-
+        GET   /workouts/plans/{id}/ — coach: plan detail with days/exercises
+        PATCH /workouts/plans/{id}/ — coach: edit header fields (title, dates,
+        notes, is_active). No DELETE — retire with is_active=false; plan
+        history stays attached to the member.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - workouts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkoutPlanUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkoutPlanUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkoutPlanUpdate'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutPlanUpdate'
+          description: ''
+    patch:
+      operationId: workouts_plans_partial_update
+      description: |-
+        GET   /workouts/plans/{id}/ — coach: plan detail with days/exercises
+        PATCH /workouts/plans/{id}/ — coach: edit header fields (title, dates,
+        notes, is_active). No DELETE — retire with is_active=false; plan
+        history stays attached to the member.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - workouts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedWorkoutPlanUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedWorkoutPlanUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedWorkoutPlanUpdate'
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutPlanUpdate'
+          description: ''
+components:
+  schemas:
+    AttendanceLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        checked_in_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - checked_in_at
+      - id
+    AvailableClasses:
+      type: object
+      description: Response shape for GET /classes/available/.
+      properties:
+        open_to_book:
+          type: integer
+        attended_this_month:
+          type: integer
+        occurrences:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassOccurrence'
+      required:
+      - attended_this_month
+      - occurrences
+      - open_to_book
+    BlankEnum:
+      enum:
+      - ''
+    BookingApproveResponse:
+      type: object
+      description: Response shape for POST /classes/bookings/{id}/approve/.
+      properties:
+        detail:
+          type: string
+        status:
+          type: string
+      required:
+      - detail
+      - status
+    BookingCancelResponse:
+      type: object
+      description: Response shape for POST /classes/bookings/{id}/cancel/.
+      properties:
+        detail:
+          type: string
+        promoted_from_waitlist:
+          type: boolean
+      required:
+      - detail
+      - promoted_from_waitlist
+    BookingCreate:
+      type: object
+      description: 'Member books one occurrence: {class_id, date} with date as YYYY-MM-DD.'
+      properties:
+        class_id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+      required:
+      - class_id
+      - date
+    BookingCreateResponse:
+      type: object
+      description: Response shape for POST /classes/bookings/ (create).
+      properties:
+        detail:
+          type: string
+        status:
+          type: string
+        booking_id:
+          type: string
+      required:
+      - booking_id
+      - detail
+      - status
+    BookingRejectResponse:
+      type: object
+      description: Response shape for POST /classes/bookings/{id}/reject/.
+      properties:
+        detail:
+          type: string
+        status:
+          type: string
+        promoted_from_waitlist:
+          type: boolean
+      required:
+      - detail
+      - promoted_from_waitlist
+      - status
+    BookingRoster:
+      type: object
+      description: Response shape for GET /classes/bookings/.
+      properties:
+        summary:
+          $ref: '#/components/schemas/BookingRosterSummary'
+        bookings:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingRosterRow'
+      required:
+      - bookings
+      - summary
+    BookingRosterRow:
+      type: object
+      properties:
+        id:
+          type: string
+        member_name:
+          type: string
+        class_title:
+          type: string
+        coach_name:
+          type: string
+        day_name:
+          type: string
+        start_time:
+          type: string
+          format: time
+        date:
+          type: string
+          format: date
+        status:
+          type: string
+      required:
+      - class_title
+      - coach_name
+      - date
+      - day_name
+      - id
+      - member_name
+      - start_time
+      - status
+    BookingRosterSummary:
+      type: object
+      properties:
+        today_count:
+          type: integer
+        pending_count:
+          type: integer
+        confirmed_count:
+          type: integer
+        canceled_count:
+          type: integer
+      required:
+      - canceled_count
+      - confirmed_count
+      - pending_count
+      - today_count
+    ClassAttendance:
+      type: object
+      properties:
+        title:
+          type: string
+        attendance_rate:
+          type: integer
+      required:
+      - attendance_rate
+      - title
+    ClassCalendar:
+      type: object
+      description: Response shape for GET /classes/calendar/.
+      properties:
+        active_classes:
+          type: integer
+        full_classes:
+          type: integer
+        avg_fill_percent:
+          type: integer
+        coaches_involved:
+          type: integer
+        classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassCalendarRow'
+      required:
+      - active_classes
+      - avg_fill_percent
+      - classes
+      - coaches_involved
+      - full_classes
+    ClassCalendarRow:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        coach_name:
+          type: string
+        day_of_week:
+          type: integer
+        day_name:
+          type: string
+        start_time:
+          type: string
+          format: time
+        duration_minutes:
+          type: integer
+        capacity:
+          type: integer
+        booked:
+          type: integer
+      required:
+      - booked
+      - capacity
+      - coach_name
+      - day_name
+      - day_of_week
+      - duration_minutes
+      - id
+      - start_time
+      - title
+    ClassOccurrence:
+      type: object
+      properties:
+        class_id:
+          type: string
+        title:
+          type: string
+        coach_name:
+          type: string
+        day_name:
+          type: string
+        date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        duration_minutes:
+          type: integer
+        capacity:
+          type: integer
+        booked:
+          type: integer
+        is_full:
+          type: boolean
+        my_status:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MyStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - booked
+      - capacity
+      - class_id
+      - coach_name
+      - date
+      - day_name
+      - duration_minutes
+      - is_full
+      - my_status
+      - start_time
+      - title
+    ClassWrite:
+      type: object
+      description: |-
+        Owner create + update. The coach queryset is scoped to the owner's gym
+        in __init__ so a cross-gym coach id fails validation instead of 500-ing
+        on the FK (same intent as PaymentCreateSerializer.validate_member_id).
+      properties:
+        title:
+          type: string
+          maxLength: 100
+        coach:
+          type: string
+          format: uuid
+          nullable: true
+        day_of_week:
+          allOf:
+          - $ref: '#/components/schemas/DayOfWeekEnum'
+          minimum: 0
+          maximum: 32767
+        start_time:
+          type: string
+          format: time
+        duration_minutes:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        is_active:
+          type: boolean
+      required:
+      - day_of_week
+      - start_time
+      - title
+    CoachCreate:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/GenderFaeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+        phone:
+          type: string
+          maxLength: 11
+        email:
+          oneOf:
+          - type: string
+            format: email
+            default: ''
+          - type: string
+            maxLength: 0
+        address:
+          type: string
+          maxLength: 255
+        specialties:
+          type: array
+          items:
+            type: string
+        experience_years:
+          type: integer
+          minimum: 0
+          default: 0
+        primary_certification:
+          type: string
+          maxLength: 150
+        student_capacity:
+          type: integer
+          minimum: 0
+          nullable: true
+        work_shift:
+          oneOf:
+          - $ref: '#/components/schemas/WorkShiftEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        working_days:
+          type: array
+          items:
+            type: string
+        position:
+          allOf:
+          - $ref: '#/components/schemas/PositionEnum'
+          default: coach
+        send_invite:
+          type: boolean
+          default: true
+        instant_activation:
+          type: boolean
+          default: true
+      required:
+      - first_name
+      - last_name
+      - phone
+      - specialties
+    CoachDashboard:
+      type: object
+      description: Response shape for GET /coaches/dashboard/.
+      properties:
+        active_students:
+          type: integer
+        new_students_this_month:
+          type: integer
+        checkins_today:
+          type: integer
+        sessions_today_total:
+          type: integer
+        sessions_today_remaining:
+          type: integer
+        today_sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TodaySession'
+        weekly_attendance_rate:
+          type: integer
+        weekly_attendance_rate_trend:
+          type: integer
+        weekly_attendance:
+          type: array
+          items:
+            $ref: '#/components/schemas/CoachWeeklyAttendanceBar'
+        needs_attention:
+          type: array
+          items:
+            $ref: '#/components/schemas/NeedsAttention'
+        top_students:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopStudent'
+        recent_activity:
+          type: array
+          items:
+            $ref: '#/components/schemas/CoachRecentActivityEvent'
+      required:
+      - active_students
+      - checkins_today
+      - needs_attention
+      - new_students_this_month
+      - recent_activity
+      - sessions_today_remaining
+      - sessions_today_total
+      - today_sessions
+      - top_students
+      - weekly_attendance
+      - weekly_attendance_rate
+      - weekly_attendance_rate_trend
+    CoachDetail:
+      type: object
+      description: Coach's own profile (coach-profile.html). User fields synced.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        phone_number:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/GenderFaeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+        address:
+          type: string
+          maxLength: 255
+        position:
+          allOf:
+          - $ref: '#/components/schemas/PositionEnum'
+          readOnly: true
+        bio:
+          type: string
+        specialties: {}
+        experience_years:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        primary_certification:
+          type: string
+          maxLength: 150
+        student_capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        work_shift:
+          oneOf:
+          - $ref: '#/components/schemas/WorkShiftEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        working_days: {}
+        is_active:
+          type: boolean
+          readOnly: true
+      required:
+      - email
+      - full_name
+      - id
+      - is_active
+      - phone_number
+      - position
+    CoachDetailUpdate:
+      type: object
+      description: Owner updates coach details (PATCH /coaches/{id}/).
+      properties:
+        bio:
+          type: string
+        specialties: {}
+        experience_years:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        primary_certification:
+          type: string
+          maxLength: 150
+        student_capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        work_shift:
+          oneOf:
+          - $ref: '#/components/schemas/WorkShiftEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        working_days: {}
+        is_active:
+          type: boolean
+    CoachList:
+      type: object
+      description: 'Owner view: coach-list table row (admin-coaches.html).'
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        position:
+          $ref: '#/components/schemas/PositionEnum'
+        specialties: {}
+        student_count:
+          type: integer
+          description: Distinct members assigned to this coach or in active plans
+            by them.
+          readOnly: true
+        is_active:
+          type: boolean
+      required:
+      - full_name
+      - id
+      - student_count
+    CoachMemberCreate:
+      type: object
+      description: |-
+        POST /members/my-students/ — a COACH adds their own student. Same
+        shape as MemberCreateSerializer, but gym comes from the coach's
+        CoachProfile (not owned_gym), and assigned_coach is always the
+        requesting coach — a coach can't assign a student to someone else.
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 20
+        email:
+          oneOf:
+          - type: string
+            format: email
+          - type: string
+            maxLength: 0
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/Gender5ebEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        address:
+          type: string
+          maxLength: 255
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days:
+          type: array
+          items:
+            type: string
+        coach_notes:
+          type: string
+        start_date:
+          type: string
+          format: date
+        create_login_account:
+          type: boolean
+          default: false
+        membership_plan_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - first_name
+      - last_name
+      - start_date
+    CoachMini:
+      type: object
+      description: |-
+        Coach card on the member dashboard. CoachProfile has no own name —
+        it always comes from the linked user.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        position:
+          $ref: '#/components/schemas/PositionEnum'
+        specialties: {}
+      required:
+      - full_name
+      - id
+    CoachPerformance:
+      type: object
+      description: Response shape for GET /coaches/performance/.
+      properties:
+        days:
+          type: integer
+        sessions_held:
+          type: integer
+        sessions_trend_pct:
+          type: integer
+          nullable: true
+        avg_attendance_rate:
+          type: integer
+          nullable: true
+        active_students:
+          type: integer
+        satisfaction_score:
+          type: integer
+          nullable: true
+        monthly_sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonthlySessionsPoint'
+        goal_mix:
+          type: array
+          items:
+            $ref: '#/components/schemas/GoalMix'
+        top_students:
+          type: array
+          items:
+            $ref: '#/components/schemas/PerformanceTopStudent'
+        class_attendance:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassAttendance'
+        goal_progress:
+          type: array
+          items:
+            $ref: '#/components/schemas/GoalProgress'
+      required:
+      - active_students
+      - avg_attendance_rate
+      - class_attendance
+      - days
+      - goal_mix
+      - goal_progress
+      - monthly_sessions
+      - satisfaction_score
+      - sessions_held
+      - sessions_trend_pct
+      - top_students
+    CoachRecentActivityEvent:
+      type: object
+      properties:
+        type:
+          type: string
+        text:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+      - text
+      - timestamp
+      - type
+    CoachSelfUpdate:
+      type: object
+      description: |-
+        PATCH /coaches/me/ — limited fields only. position / is_active /
+        start_date are owner territory: absent here so a PATCH can't touch
+        them even by accident.
+      properties:
+        bio:
+          type: string
+        specialties: {}
+        experience_years:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        primary_certification:
+          type: string
+          maxLength: 150
+        student_capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        work_shift:
+          oneOf:
+          - $ref: '#/components/schemas/WorkShiftEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        working_days: {}
+        email:
+          oneOf:
+          - type: string
+            format: email
+          - type: string
+            maxLength: 0
+    CoachStudentPlan:
+      type: object
+      properties:
+        title:
+          type: string
+        level:
+          type: string
+      required:
+      - level
+      - title
+    CoachStudentRow:
+      type: object
+      description: Row shape for GET /coaches/my-students/ (the response is a bare
+        array).
+      properties:
+        id:
+          type: string
+        full_name:
+          type: string
+        current_plan:
+          allOf:
+          - $ref: '#/components/schemas/CoachStudentPlan'
+          nullable: true
+        status:
+          type: string
+        attendance_rate:
+          type: integer
+        last_session:
+          type: string
+          format: date
+          nullable: true
+        membership_end_date:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - attendance_rate
+      - current_plan
+      - full_name
+      - id
+      - last_session
+      - membership_end_date
+      - status
+    CoachTeamList:
+      type: object
+      description: Response shape for GET /coaches/.
+      properties:
+        summary:
+          $ref: '#/components/schemas/CoachTeamSummary'
+        coaches:
+          type: array
+          items:
+            $ref: '#/components/schemas/CoachList'
+      required:
+      - coaches
+      - summary
+    CoachTeamSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        active:
+          type: integer
+        admin_staff:
+          type: integer
+      required:
+      - active
+      - admin_staff
+      - total
+    CoachWeeklyAttendanceBar:
+      type: object
+      properties:
+        day:
+          type: string
+        checkins:
+          type: integer
+      required:
+      - checkins
+      - day
+    ConversationCreate:
+      type: object
+      description: |-
+        Coach starts (or reuses) a thread with a student. Member side uses
+        POST without body to open a thread with their assigned coach.
+      properties:
+        member_id:
+          type: string
+          format: uuid
+    ConversationList:
+      type: object
+      description: 'Sidebar row: peer name, last preview, unread count.'
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        peer_id:
+          type: string
+          readOnly: true
+        peer_name:
+          type: string
+          readOnly: true
+        last_message:
+          type: string
+          readOnly: true
+        last_message_at:
+          type: string
+          format: date-time
+          readOnly: true
+        unread_count:
+          type: integer
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - last_message
+      - last_message_at
+      - peer_id
+      - peer_name
+      - unread_count
+      - updated_at
+    DailyAttendancePoint:
+      type: object
+      properties:
+        date:
+          type: string
+          description: YYYY-MM-DD
+        checkins:
+          type: integer
+      required:
+      - checkins
+      - date
+    DashboardWeightTrendPoint:
+      type: object
+      properties:
+        logged_at:
+          type: string
+          format: date
+        weight_kg:
+          type: number
+          format: double
+      required:
+      - logged_at
+      - weight_kg
+    DayOfWeekEnum:
+      enum:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      type: integer
+      description: |-
+        * `0` - شنبه
+        * `1` - یکشنبه
+        * `2` - دوشنبه
+        * `3` - سه‌شنبه
+        * `4` - چهارشنبه
+        * `5` - پنج‌شنبه
+        * `6` - جمعه
+    DetailResponse:
+      type: object
+      description: 'Generic {"detail": "..."} response shape, reused by several auth
+        endpoints.'
+      properties:
+        detail:
+          type: string
+      required:
+      - detail
+    ExercisePicker:
+      type: object
+      description: Minimal shape for the member app's exercise picker dropdowns.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 150
+        category:
+          type: string
+          maxLength: 50
+      required:
+      - id
+      - title
+    ExpiringMembership:
+      type: object
+      properties:
+        member_id:
+          type: string
+        member_name:
+          type: string
+        plan_name:
+          type: string
+        end_date:
+          type: string
+          format: date
+        days_left:
+          type: integer
+      required:
+      - days_left
+      - end_date
+      - member_id
+      - member_name
+      - plan_name
+    ForgotPasswordConfirm:
+      type: object
+      description: |-
+        Step 3 — set the new password.
+
+        Preferred (3-step UI): identifier + reset_token + password fields.
+        Legacy (2-step): phone_number + code + password fields still works.
+      properties:
+        identifier:
+          type: string
+        reset_token:
+          type: string
+        phone_number:
+          type: string
+          maxLength: 11
+        code:
+          type: string
+          maxLength: 6
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 8
+      required:
+      - password
+      - password_confirm
+    ForgotPasswordRequest:
+      type: object
+      description: |-
+        Step 1 — send OTP. Accepts `identifier` (email or phone, matches the
+        forgot-password UI) or legacy `phone_number`.
+      properties:
+        identifier:
+          type: string
+        phone_number:
+          type: string
+          maxLength: 11
+    ForgotPasswordVerify:
+      type: object
+      description: Step 2 — verify OTP and issue a short-lived reset_token.
+      properties:
+        identifier:
+          type: string
+        code:
+          type: string
+          maxLength: 6
+      required:
+      - code
+      - identifier
+    ForgotPasswordVerifyResponse:
+      type: object
+      description: 200 shape returned by ForgotPasswordVerifyView.
+      properties:
+        reset_token:
+          type: string
+      required:
+      - reset_token
+    Gender5ebEnum:
+      enum:
+      - MALE
+      - FEMALE
+      type: string
+      description: |-
+        * `MALE` - Male
+        * `FEMALE` - Female
+    GenderFaeEnum:
+      enum:
+      - male
+      - female
+      type: string
+      description: |-
+        * `male` - مرد
+        * `female` - زن
+    GoalMix:
+      type: object
+      properties:
+        goal:
+          type: string
+        count:
+          type: integer
+        percent:
+          type: integer
+      required:
+      - count
+      - goal
+      - percent
+    GoalProgress:
+      type: object
+      properties:
+        goal:
+          type: string
+        progress_percent:
+          type: integer
+      required:
+      - goal
+      - progress_percent
+    GoogleLoginRequest:
+      type: object
+      description: |-
+        Documents the body GoogleLoginView actually accepts: the id_token
+        (JWT) from Google Identity Services, or the legacy access_token.
+      properties:
+        id_token:
+          type: string
+          description: ID token (JWT) from Google Identity Services
+        access_token:
+          type: string
+          description: Legacy OAuth access token
+    GymClass:
+      type: object
+      description: 'Owner list row (admin-classes.html): template + this week''s fill.'
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 100
+        coach:
+          type: string
+          format: uuid
+          nullable: true
+        coach_name:
+          type: string
+          readOnly: true
+        day_of_week:
+          allOf:
+          - $ref: '#/components/schemas/DayOfWeekEnum'
+          minimum: 0
+          maximum: 32767
+        day_name:
+          type: string
+          readOnly: true
+        start_time:
+          type: string
+          format: time
+        duration_minutes:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        is_active:
+          type: boolean
+        booked_this_week:
+          type: string
+          readOnly: true
+      required:
+      - booked_this_week
+      - coach_name
+      - day_name
+      - day_of_week
+      - id
+      - start_time
+      - title
+    GymDetail:
+      type: object
+      description: GET/PATCH /api/v1/gyms/me/ — the owner's own gym.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-a-zA-Z0-9_]+$
+        gym_type:
+          oneOf:
+          - $ref: '#/components/schemas/GymTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        phone_number:
+          type: string
+          maxLength: 20
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        city:
+          type: string
+          maxLength: 100
+        address:
+          type: string
+          maxLength: 255
+        about:
+          type: string
+        is_active:
+          type: boolean
+          readOnly: true
+        settings:
+          allOf:
+          - $ref: '#/components/schemas/GymSettings'
+          readOnly: true
+        subscription:
+          allOf:
+          - $ref: '#/components/schemas/Subscription'
+          readOnly: true
+      required:
+      - id
+      - is_active
+      - name
+      - settings
+      - slug
+      - subscription
+    GymRegister:
+      type: object
+      properties:
+        full_name:
+          type: string
+          maxLength: 225
+        gym_name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 11
+        email:
+          type: string
+          format: email
+        city:
+          type: string
+          maxLength: 100
+        gym_type:
+          $ref: '#/components/schemas/GymTypeEnum'
+        plan:
+          $ref: '#/components/schemas/RequestedPlanEnum'
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 8
+        accepted_terms:
+          type: boolean
+      required:
+      - accepted_terms
+      - city
+      - email
+      - full_name
+      - gym_name
+      - gym_type
+      - password
+      - password_confirm
+      - phone
+      - plan
+    GymSettings:
+      type: object
+      properties:
+        timezone:
+          type: string
+          maxLength: 50
+        currency:
+          type: string
+          maxLength: 10
+        working_hours: {}
+        notification_preferences: {}
+    GymTypeEnum:
+      enum:
+      - fitness
+      - crossfit
+      - martial_arts
+      - aquatic
+      - multipurpose
+      - other
+      type: string
+      description: |-
+        * `fitness` - باشگاه بدنسازی و فیتنس
+        * `crossfit` - کراس‌فیت
+        * `martial_arts` - ورزش‌های رزمی
+        * `aquatic` - استخر و آبی
+        * `multipurpose` - مجموعه‌ی چندمنظوره
+        * `other` - سایر
+    JWT:
+      type: object
+      description: Serializer for JWT authentication.
+      properties:
+        access:
+          type: string
+        refresh:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+      required:
+      - access
+      - refresh
+      - user
+    LanguageEnum:
+      enum:
+      - fa
+      - en
+      type: string
+      description: |-
+        * `fa` - فارسی
+        * `en` - English
+    LevelEnum:
+      enum:
+      - BEGINNER
+      - INTERMEDIATE
+      - ADVANCED
+      type: string
+      description: |-
+        * `BEGINNER` - Beginner
+        * `INTERMEDIATE` - Intermediate
+        * `ADVANCED` - Advanced
+    Login:
+      type: object
+      description: |-
+        Accepts either an email or a phone number in one field. We don't ask
+        the user to pick which one they're typing — we detect it with PHONE_RE
+        and look up the matching User, then authenticate normally against
+        that user's email (Django's auth backend is keyed on USERNAME_FIELD,
+        which is email, regardless of what the person typed).
+      properties:
+        identifier:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - identifier
+      - password
+    MarkAllReadResponse:
+      type: object
+      description: Response shape for POST /notifications/read-all/.
+      properties:
+        marked_read:
+          type: integer
+          description: Number of notifications flipped to read
+      required:
+      - marked_read
+    MarkConversationReadResponse:
+      type: object
+      description: Response shape for POST /messages/conversations/<id>/read/.
+      properties:
+        marked_read:
+          type: integer
+          description: Number of peer messages flipped to read
+      required:
+      - marked_read
+    MemberCreate:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 20
+        email:
+          oneOf:
+          - type: string
+            format: email
+          - type: string
+            maxLength: 0
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/Gender5ebEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        address:
+          type: string
+          maxLength: 255
+        assigned_coach_id:
+          type: string
+          format: uuid
+          nullable: true
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days:
+          type: array
+          items:
+            type: string
+        coach_notes:
+          type: string
+        start_date:
+          type: string
+          format: date
+        create_login_account:
+          type: boolean
+          default: false
+        membership_plan_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - first_name
+      - last_name
+      - start_date
+    MemberDashboard:
+      type: object
+      description: Response shape for GET /members/dashboard/.
+      properties:
+        sessions_this_week:
+          type: integer
+        weekly_target:
+          type: integer
+        streak_days:
+          type: integer
+        current_weight_kg:
+          type: number
+          format: double
+          nullable: true
+        weight_delta_kg:
+          type: number
+          format: double
+          nullable: true
+        today_workout:
+          allOf:
+          - $ref: '#/components/schemas/TodayWorkout'
+          nullable: true
+        weight_trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardWeightTrendPoint'
+        coach:
+          allOf:
+          - $ref: '#/components/schemas/CoachMini'
+          nullable: true
+        upcoming_classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpcomingClass'
+      required:
+      - coach
+      - current_weight_kg
+      - sessions_this_week
+      - streak_days
+      - today_workout
+      - upcoming_classes
+      - weekly_target
+      - weight_delta_kg
+      - weight_trend
+    MemberDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          readOnly: true
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/Gender5ebEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        address:
+          type: string
+          maxLength: 255
+        assigned_coach:
+          type: string
+          format: uuid
+          nullable: true
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days: {}
+        coach_notes:
+          type: string
+        start_date:
+          type: string
+          format: date
+        is_active:
+          type: boolean
+      required:
+      - email
+      - first_name
+      - id
+      - last_name
+      - start_date
+    MemberGrowthPoint:
+      type: object
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+        active_members:
+          type: integer
+      required:
+      - active_members
+      - month
+      - year
+    MemberList:
+      type: object
+      description: |-
+        plan_name / due_date / membership_status are annotated onto each row
+        by MemberListCreateView's queryset (a Subquery against the member's
+        most-recent Membership), not real model fields — read via getattr
+        with a None default so this doesn't break against a plain queryset.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        phone_number:
+          type: string
+          maxLength: 20
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        is_active:
+          type: boolean
+        start_date:
+          type: string
+          format: date
+        coach_name:
+          type: string
+          nullable: true
+          readOnly: true
+        plan_name:
+          type: string
+          nullable: true
+          readOnly: true
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          readOnly: true
+        membership_status:
+          type: string
+          readOnly: true
+      required:
+      - coach_name
+      - due_date
+      - full_name
+      - id
+      - membership_status
+      - plan_name
+      - start_date
+    MemberMembership:
+      type: object
+      description: Response shape for GET /members/my-membership/.
+      properties:
+        current:
+          allOf:
+          - $ref: '#/components/schemas/MembershipCurrent'
+          nullable: true
+        payment_summary:
+          $ref: '#/components/schemas/MembershipPaymentSummary'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/Membership'
+      required:
+      - current
+      - history
+      - payment_summary
+    MemberSelfUpdate:
+      type: object
+      description: |-
+        PATCH /members/me/ — only what a member owns about themselves.
+        coach_notes / start_date / is_active / assigned_coach are owner/coach
+        territory: absent here, so a PATCH can't touch them even by accident.
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 20
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/Gender5ebEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        address:
+          type: string
+          maxLength: 255
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days: {}
+      required:
+      - first_name
+      - last_name
+    Membership:
+      type: object
+      description: One membership period — a row of the membership history table.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        plan_name:
+          type: string
+          readOnly: true
+        plan_duration_days:
+          type: integer
+          readOnly: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/MembershipStatusEnum'
+      required:
+      - end_date
+      - id
+      - plan_duration_days
+      - plan_name
+      - start_date
+    MembershipCurrent:
+      type: object
+      description: |-
+        MembershipSerializer's fields plus the computed extras the view
+        spreads onto it (days_remaining, elapsed_percent, effective_status).
+      properties:
+        id:
+          type: string
+          format: uuid
+        plan_name:
+          type: string
+        plan_duration_days:
+          type: integer
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          type: string
+        days_remaining:
+          type: integer
+        elapsed_percent:
+          type: integer
+        effective_status:
+          type: string
+      required:
+      - days_remaining
+      - effective_status
+      - elapsed_percent
+      - end_date
+      - id
+      - plan_duration_days
+      - plan_name
+      - start_date
+      - status
+    MembershipPaymentSummary:
+      type: object
+      properties:
+        plan_price:
+          type: string
+          nullable: true
+        total_paid_this_year:
+          type: string
+          nullable: true
+        next_payment_date:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - next_payment_date
+      - plan_price
+      - total_paid_this_year
+    MembershipPlan:
+      type: object
+      description: |-
+        Owner-facing plan card/table row (admin-plans screen). active_members
+        is annotated in the view queryset — distinct members on an ACTIVE
+        membership of this plan, not membership rows.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        duration_days:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,0})?$
+        description:
+          type: string
+          maxLength: 255
+        features: {}
+        is_active:
+          type: boolean
+        active_members:
+          type: integer
+          readOnly: true
+          default: 0
+      required:
+      - active_members
+      - duration_days
+      - id
+      - name
+      - price
+    MembershipStatusEnum:
+      enum:
+      - ACTIVE
+      - EXPIRED
+      - CANCELED
+      type: string
+      description: |-
+        * `ACTIVE` - Active
+        * `EXPIRED` - Expired
+        * `CANCELED` - Canceled
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        sender_id:
+          type: string
+          format: uuid
+          readOnly: true
+        body:
+          type: string
+          maxLength: 4000
+        is_read:
+          type: boolean
+          readOnly: true
+        is_mine:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - body
+      - created_at
+      - id
+      - is_mine
+      - is_read
+      - sender_id
+    MessageCreate:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 4000
+      required:
+      - body
+    MonthlySessionsPoint:
+      type: object
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+        sessions:
+          type: integer
+      required:
+      - month
+      - sessions
+      - year
+    MyBookingRow:
+      type: object
+      description: Response shape for one row of GET /classes/my-bookings/ (a plain
+        list).
+      properties:
+        id:
+          type: string
+        class_title:
+          type: string
+        coach_name:
+          type: string
+        day_name:
+          type: string
+        date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        status:
+          type: string
+      required:
+      - class_title
+      - coach_name
+      - date
+      - day_name
+      - id
+      - start_time
+      - status
+    MyStatusEnum:
+      enum:
+      - PENDING
+      - CONFIRMED
+      - WAITLISTED
+      - CANCELED
+      - REJECTED
+      type: string
+      description: |-
+        * `PENDING` - در انتظار تأیید
+        * `CONFIRMED` - تأییدشده
+        * `WAITLISTED` - لیست انتظار
+        * `CANCELED` - لغوشده
+        * `REJECTED` - ردشده
+    NeedsAttention:
+      type: object
+      properties:
+        member_id:
+          type: string
+        member_name:
+          type: string
+        reasons:
+          type: array
+          items:
+            type: string
+      required:
+      - member_id
+      - member_name
+      - reasons
+    NewMembershipsPoint:
+      type: object
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - month
+      - year
+    Notification:
+      type: object
+      description: 'Read-only: members never create or edit notifications through
+        the API.'
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        title:
+          type: string
+          maxLength: 200
+        body:
+          type: string
+        is_read:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - title
+    NullEnum:
+      enum:
+      - null
+    OTPRequest:
+      type: object
+      description: POST /users/otp/request/ body.
+      properties:
+        identifier:
+          type: string
+          description: Email or phone number (09XXXXXXXXX)
+      required:
+      - identifier
+    OTPVerify:
+      type: object
+      description: POST /users/otp/verify/ body.
+      properties:
+        identifier:
+          type: string
+          description: Email or phone number (09XXXXXXXXX)
+        code:
+          type: string
+          description: OTP code sent to the identifier
+          maxLength: 6
+      required:
+      - code
+      - identifier
+    OTPVerifyNotFoundResponse:
+      type: object
+      description: 404 shape returned by VerifyOTPView when the identifier has no
+        account yet.
+      properties:
+        detail:
+          type: string
+        needs_registration:
+          type: boolean
+      required:
+      - detail
+      - needs_registration
+    OwnerDashboard:
+      type: object
+      description: Response shape for GET /gyms/dashboard/.
+      properties:
+        active_members:
+          type: integer
+        active_members_trend_percent:
+          type: integer
+          nullable: true
+        today_checkins:
+          type: integer
+        expiring_count:
+          type: integer
+        expiring:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpiringMembership'
+        revenue_month:
+          type: string
+        revenue_trend_percent:
+          type: integer
+          nullable: true
+        revenue_year:
+          type: string
+        bookings_today:
+          type: integer
+        bookings_trend_percent:
+          type: integer
+          nullable: true
+        renewal_rate_percent:
+          type: integer
+          nullable: true
+        renewal_trend_percent:
+          type: integer
+          nullable: true
+        weekly_attendance:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeeklyAttendanceBar'
+        todays_classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TodaysClass'
+        recent_activity:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecentActivityEvent'
+        recent_members:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecentMemberRow'
+      required:
+      - active_members
+      - active_members_trend_percent
+      - bookings_today
+      - bookings_trend_percent
+      - expiring
+      - expiring_count
+      - recent_activity
+      - recent_members
+      - renewal_rate_percent
+      - renewal_trend_percent
+      - revenue_month
+      - revenue_trend_percent
+      - revenue_year
+      - today_checkins
+      - todays_classes
+      - weekly_attendance
+    PaginatedMemberListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberList'
+    PasswordChange:
+      type: object
+      properties:
+        new_password1:
+          type: string
+          maxLength: 128
+        new_password2:
+          type: string
+          maxLength: 128
+      required:
+      - new_password1
+      - new_password2
+    PatchedCoachDetailUpdate:
+      type: object
+      description: Owner updates coach details (PATCH /coaches/{id}/).
+      properties:
+        bio:
+          type: string
+        specialties: {}
+        experience_years:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        primary_certification:
+          type: string
+          maxLength: 150
+        student_capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        work_shift:
+          oneOf:
+          - $ref: '#/components/schemas/WorkShiftEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        working_days: {}
+        is_active:
+          type: boolean
+    PatchedCoachSelfUpdate:
+      type: object
+      description: |-
+        PATCH /coaches/me/ — limited fields only. position / is_active /
+        start_date are owner territory: absent here so a PATCH can't touch
+        them even by accident.
+      properties:
+        bio:
+          type: string
+        specialties: {}
+        experience_years:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        primary_certification:
+          type: string
+          maxLength: 150
+        student_capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        work_shift:
+          oneOf:
+          - $ref: '#/components/schemas/WorkShiftEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        working_days: {}
+        email:
+          oneOf:
+          - type: string
+            format: email
+          - type: string
+            maxLength: 0
+    PatchedGymDetail:
+      type: object
+      description: GET/PATCH /api/v1/gyms/me/ — the owner's own gym.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-a-zA-Z0-9_]+$
+        gym_type:
+          oneOf:
+          - $ref: '#/components/schemas/GymTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        phone_number:
+          type: string
+          maxLength: 20
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        city:
+          type: string
+          maxLength: 100
+        address:
+          type: string
+          maxLength: 255
+        about:
+          type: string
+        is_active:
+          type: boolean
+          readOnly: true
+        settings:
+          allOf:
+          - $ref: '#/components/schemas/GymSettings'
+          readOnly: true
+        subscription:
+          allOf:
+          - $ref: '#/components/schemas/Subscription'
+          readOnly: true
+    PatchedGymSettings:
+      type: object
+      properties:
+        timezone:
+          type: string
+          maxLength: 50
+        currency:
+          type: string
+          maxLength: 10
+        working_hours: {}
+        notification_preferences: {}
+    PatchedMemberDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          readOnly: true
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/Gender5ebEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        address:
+          type: string
+          maxLength: 255
+        assigned_coach:
+          type: string
+          format: uuid
+          nullable: true
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days: {}
+        coach_notes:
+          type: string
+        start_date:
+          type: string
+          format: date
+        is_active:
+          type: boolean
+    PatchedMemberSelfUpdate:
+      type: object
+      description: |-
+        PATCH /members/me/ — only what a member owns about themselves.
+        coach_notes / start_date / is_active / assigned_coach are owner/coach
+        territory: absent here, so a PATCH can't touch them even by accident.
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 20
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/Gender5ebEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        address:
+          type: string
+          maxLength: 255
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days: {}
+    PatchedMembershipPlan:
+      type: object
+      description: |-
+        Owner-facing plan card/table row (admin-plans screen). active_members
+        is annotated in the view queryset — distinct members on an ACTIVE
+        membership of this plan, not membership rows.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        duration_days:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,0})?$
+        description:
+          type: string
+          maxLength: 255
+        features: {}
+        is_active:
+          type: boolean
+        active_members:
+          type: integer
+          readOnly: true
+          default: 0
+    PatchedProgressEntry:
+      type: object
+      description: |-
+        Numeric measurements only — photos stay out until MEDIA is actually
+        served. At least one measurement is required so an empty POST can't
+        create a meaningless all-null row.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        logged_at:
+          type: string
+          format: date
+        weight_kg:
+          type: number
+          format: double
+          nullable: true
+        body_fat_percentage:
+          type: number
+          format: double
+          nullable: true
+        chest_cm:
+          type: number
+          format: double
+          nullable: true
+        waist_cm:
+          type: number
+          format: double
+          nullable: true
+        thigh_cm:
+          type: number
+          format: double
+          nullable: true
+        arm_cm:
+          type: number
+          format: double
+          nullable: true
+    PatchedUser:
+      type: object
+      description: Used for /users/me/ and as dj-rest-auth's USER_DETAILS_SERIALIZER.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+          nullable: true
+        phone_number:
+          type: string
+          nullable: true
+          maxLength: 20
+        is_phone_verified:
+          type: boolean
+          readOnly: true
+        full_name:
+          type: string
+          maxLength: 225
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+        notify_workout_reminder:
+          type: boolean
+        notify_coach_message:
+          type: boolean
+        notify_membership_expiry:
+          type: boolean
+        notify_promotions:
+          type: boolean
+        language:
+          $ref: '#/components/schemas/LanguageEnum'
+        weight_unit:
+          $ref: '#/components/schemas/WeightUnitEnum'
+        dark_mode:
+          type: boolean
+    PatchedWorkoutPlanUpdate:
+      type: object
+      description: |-
+        PATCH /workouts/plans/{id}/ — coach edits plan header only.
+        Days/exercises are rebuilt by assigning a new plan (one active plan
+        per member); member/coach/gym are immutable here.
+      properties:
+        title:
+          type: string
+          maxLength: 150
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days_per_week:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        notes:
+          type: string
+        is_active:
+          type: boolean
+    Payment:
+      type: object
+      description: |-
+        Payment records are standalone — no plan label field because
+        billing.MemberSubscription (the FK target) was deleted. Member's
+        membership data lives in members.Membership; here we have `note`.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,0})?$
+        status:
+          $ref: '#/components/schemas/Status7ceEnum'
+        note:
+          type: string
+          maxLength: 255
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - created_at
+      - id
+    PaymentAdmin:
+      type: object
+      description: 'Owner view: payment row with member name (payments.html table).'
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        member:
+          type: string
+          format: uuid
+        member_name:
+          type: string
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,0})?$
+        status:
+          $ref: '#/components/schemas/Status7ceEnum'
+        note:
+          type: string
+          maxLength: 255
+        recorded_by_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - created_at
+      - id
+      - member
+      - member_name
+      - recorded_by_name
+    PaymentCreate:
+      type: object
+      description: Owner records a manual payment (no gateway — MVP).
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,0})?$
+        note:
+          type: string
+          maxLength: 255
+      required:
+      - amount
+      - member_id
+    PaymentCreateResponse:
+      type: object
+      description: Response shape for POST /billing/payments/.
+      properties:
+        detail:
+          type: string
+        payment:
+          $ref: '#/components/schemas/PaymentAdmin'
+      required:
+      - detail
+      - payment
+    PerformanceTopStudent:
+      type: object
+      properties:
+        member_id:
+          type: string
+        name:
+          type: string
+        attendance_rate:
+          type: integer
+      required:
+      - attendance_rate
+      - member_id
+      - name
+    Plan:
+      type: object
+      description: Public — used by GET /api/v1/plans/ to feed the pricing page.
+      properties:
+        code:
+          $ref: '#/components/schemas/RequestedPlanEnum'
+        name:
+          type: string
+          maxLength: 100
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,0})?$
+          nullable: true
+        trial_days:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        member_limit:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        coach_limit:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+      required:
+      - code
+      - name
+    PlanDay:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 100
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        exercises:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanExercise'
+          readOnly: true
+      required:
+      - exercises
+      - id
+      - title
+    PlanDayCreate:
+      type: object
+      description: 'Nested day in plan builder: title + exercises.'
+      properties:
+        title:
+          type: string
+          maxLength: 150
+        exercises:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanExerciseCreate'
+      required:
+      - exercises
+      - title
+    PlanDistribution:
+      type: object
+      properties:
+        plan__name:
+          type: string
+        count:
+          type: integer
+      required:
+      - count
+      - plan__name
+    PlanExercise:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        exercise_id:
+          type: string
+          format: uuid
+          readOnly: true
+        exercise_title:
+          type: string
+          readOnly: true
+        exercise_category:
+          type: string
+          readOnly: true
+        sets:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        reps:
+          type: string
+          maxLength: 30
+        rest_seconds:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        target_weight_kg:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - exercise_category
+      - exercise_id
+      - exercise_title
+      - id
+      - reps
+    PlanExerciseCreate:
+      type: object
+      description: 'Nested exercise row in plan day: exercise_id + meta.'
+      properties:
+        exercise_id:
+          type: string
+          format: uuid
+        sets:
+          type: string
+          maxLength: 30
+        reps:
+          type: string
+          maxLength: 30
+        rest_seconds:
+          type: integer
+          minimum: 0
+          default: 0
+        target_weight_kg:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+      required:
+      - exercise_id
+      - reps
+      - sets
+    PositionEnum:
+      enum:
+      - coach
+      - head_coach
+      - reception
+      type: string
+      description: |-
+        * `coach` - مربی
+        * `head_coach` - سرمربی
+        * `reception` - کارمند پذیرش
+    ProgressEntry:
+      type: object
+      description: |-
+        Numeric measurements only — photos stay out until MEDIA is actually
+        served. At least one measurement is required so an empty POST can't
+        create a meaningless all-null row.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        logged_at:
+          type: string
+          format: date
+        weight_kg:
+          type: number
+          format: double
+          nullable: true
+        body_fat_percentage:
+          type: number
+          format: double
+          nullable: true
+        chest_cm:
+          type: number
+          format: double
+          nullable: true
+        waist_cm:
+          type: number
+          format: double
+          nullable: true
+        thigh_cm:
+          type: number
+          format: double
+          nullable: true
+        arm_cm:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - id
+      - logged_at
+    RecentActivityEvent:
+      type: object
+      properties:
+        type:
+          type: string
+        text:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+      - text
+      - timestamp
+      - type
+    RecentMemberRow:
+      type: object
+      properties:
+        id:
+          type: string
+        full_name:
+          type: string
+        email:
+          type: string
+        plan_name:
+          type: string
+          nullable: true
+        expiry_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          type: string
+      required:
+      - email
+      - expiry_date
+      - full_name
+      - id
+      - plan_name
+      - status
+    Reports:
+      type: object
+      description: Response shape for GET /gyms/reports/.
+      properties:
+        revenue_trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/RevenueTrendPoint'
+        member_growth:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberGrowthPoint'
+        new_memberships:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewMembershipsPoint'
+        daily_attendance:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyAttendancePoint'
+        plan_distribution:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanDistribution'
+      required:
+      - daily_attendance
+      - member_growth
+      - new_memberships
+      - plan_distribution
+      - revenue_trend
+    RequestedPlanEnum:
+      enum:
+      - FREE
+      - BASIC
+      - PRO
+      - ENTERPRISE
+      type: string
+      description: |-
+        * `FREE` - Free
+        * `BASIC` - Basic
+        * `PRO` - Professional
+        * `ENTERPRISE` - Enterprise
+    RestAuthDetail:
+      type: object
+      properties:
+        detail:
+          type: string
+          readOnly: true
+      required:
+      - detail
+    RevenueTrendPoint:
+      type: object
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+        revenue:
+          type: string
+      required:
+      - month
+      - revenue
+      - year
+    RoleEnum:
+      enum:
+      - OWNER
+      - COACH
+      - MEMBER
+      type: string
+      description: |-
+        * `OWNER` - Gym Owner
+        * `COACH` - Coach
+        * `MEMBER` - Member
+    StaffAttendanceLog:
+      type: object
+      description: 'Front-desk check-in response: log row + member name.'
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        member_name:
+          type: string
+          readOnly: true
+        checked_in_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - checked_in_at
+      - id
+      - member_name
+    StaffCheckIn:
+      type: object
+      description: |-
+        Owner/coach records a member's check-in ({member_id}). Same member-id
+        validation pattern as billing.PaymentCreateSerializer.
+      properties:
+        member_id:
+          type: string
+          format: uuid
+      required:
+      - member_id
+    Status7ceEnum:
+      enum:
+      - RECORDED
+      - REFUNDED
+      type: string
+      description: |-
+        * `RECORDED` - Recorded
+        * `REFUNDED` - Refunded
+    StrengthRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        exercise_id:
+          type: string
+          format: uuid
+        exercise_title:
+          type: string
+          readOnly: true
+        weight_kg:
+          type: number
+          format: double
+        reps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        recorded_at:
+          type: string
+          format: date
+          readOnly: true
+      required:
+      - exercise_id
+      - exercise_title
+      - id
+      - recorded_at
+      - reps
+      - weight_kg
+    Subscription:
+      type: object
+      description: |-
+        Read-only, always nested — a subscription is never edited directly
+        through this serializer; changing plans is its own future endpoint
+        with its own rules (proration, etc.), not a plain field update.
+      properties:
+        plan:
+          allOf:
+          - $ref: '#/components/schemas/Plan'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/SubscriptionStatusEnum'
+          readOnly: true
+        trial_ends_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        requested_plan:
+          readOnly: true
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RequestedPlanEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - plan
+      - requested_plan
+      - status
+      - trial_ends_at
+    SubscriptionStatusEnum:
+      enum:
+      - TRIALING
+      - ACTIVE
+      - PENDING_PAYMENT
+      - PAST_DUE
+      - CANCELED
+      type: string
+      description: |-
+        * `TRIALING` - Trialing
+        * `ACTIVE` - Active
+        * `PENDING_PAYMENT` - Pending Payment
+        * `PAST_DUE` - Past Due
+        * `CANCELED` - Canceled
+    TodaySession:
+      type: object
+      properties:
+        member_id:
+          type: string
+        member_name:
+          type: string
+        day_title:
+          type: string
+        has_checked_in:
+          type: boolean
+      required:
+      - day_title
+      - has_checked_in
+      - member_id
+      - member_name
+    TodayWorkout:
+      type: object
+      properties:
+        day_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        exercises:
+          type: array
+          items:
+            $ref: '#/components/schemas/TodayWorkoutExercise'
+      required:
+      - day_id
+      - exercises
+      - title
+    TodayWorkoutExercise:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        sets:
+          type: string
+        reps:
+          type: string
+        rest_seconds:
+          type: integer
+      required:
+      - id
+      - reps
+      - rest_seconds
+      - sets
+      - title
+    TodaysClass:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        coach_name:
+          type: string
+        start_time:
+          type: string
+          format: time
+        duration_minutes:
+          type: integer
+        capacity:
+          type: integer
+        booked:
+          type: integer
+      required:
+      - booked
+      - capacity
+      - coach_name
+      - duration_minutes
+      - id
+      - start_time
+      - title
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TopStudent:
+      type: object
+      properties:
+        member_id:
+          type: string
+        member_name:
+          type: string
+        attendance_rate:
+          type: integer
+      required:
+      - attendance_rate
+      - member_id
+      - member_name
+    TypeEnum:
+      enum:
+      - TRAINING
+      - PAYMENT
+      - CLASS
+      - MESSAGE
+      - ALERT
+      type: string
+      description: |-
+        * `TRAINING` - تمرین
+        * `PAYMENT` - پرداخت
+        * `CLASS` - کلاس
+        * `MESSAGE` - پیام
+        * `ALERT` - هشدار
+    UpcomingClass:
+      type: object
+      properties:
+        booking_id:
+          type: string
+        class_title:
+          type: string
+        coach_name:
+          type: string
+        date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        capacity:
+          type: integer
+        booked:
+          type: integer
+        status:
+          type: string
+      required:
+      - booked
+      - booking_id
+      - capacity
+      - class_title
+      - coach_name
+      - date
+      - start_time
+      - status
+    User:
+      type: object
+      description: Used for /users/me/ and as dj-rest-auth's USER_DETAILS_SERIALIZER.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+          nullable: true
+        phone_number:
+          type: string
+          nullable: true
+          maxLength: 20
+        is_phone_verified:
+          type: boolean
+          readOnly: true
+        full_name:
+          type: string
+          maxLength: 225
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+        notify_workout_reminder:
+          type: boolean
+        notify_coach_message:
+          type: boolean
+        notify_membership_expiry:
+          type: boolean
+        notify_promotions:
+          type: boolean
+        language:
+          $ref: '#/components/schemas/LanguageEnum'
+        weight_unit:
+          $ref: '#/components/schemas/WeightUnitEnum'
+        dark_mode:
+          type: boolean
+      required:
+      - date_joined
+      - email
+      - full_name
+      - id
+      - is_phone_verified
+      - role
+    WeeklyAttendanceBar:
+      type: object
+      properties:
+        day:
+          type: string
+        checkins:
+          type: integer
+      required:
+      - checkins
+      - day
+    WeightUnitEnum:
+      enum:
+      - kg
+      - lb
+      type: string
+      description: |-
+        * `kg` - کیلوگرم
+        * `lb` - پوند
+    WorkShiftEnum:
+      enum:
+      - morning
+      - evening
+      - morning_evening
+      - full_time
+      type: string
+      description: |-
+        * `morning` - صبح
+        * `evening` - عصر
+        * `morning_evening` - صبح و عصر
+        * `full_time` - تمام‌وقت
+    WorkoutPlanCoachDetail:
+      type: object
+      description: Coach view of plan detail (edit/assign screen).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 150
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days_per_week:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        notes:
+          type: string
+        duration_weeks:
+          type: integer
+          readOnly: true
+        member_id:
+          type: string
+          format: uuid
+          readOnly: true
+        member_name:
+          type: string
+          readOnly: true
+        coach_name:
+          type: string
+          readOnly: true
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanDay'
+          readOnly: true
+        is_active:
+          type: boolean
+      required:
+      - coach_name
+      - days
+      - duration_weeks
+      - end_date
+      - id
+      - member_id
+      - member_name
+      - start_date
+      - title
+    WorkoutPlanCreate:
+      type: object
+      description: 'Coach creates plan: title, member, goal, level, training_days_per_week,
+        start_date, days[].'
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        member_id:
+          type: string
+          format: uuid
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days_per_week:
+          type: integer
+          minimum: 1
+          nullable: true
+        start_date:
+          type: string
+          format: date
+        duration_weeks:
+          type: integer
+          minimum: 1
+          default: 4
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanDayCreate'
+        notes:
+          type: string
+      required:
+      - days
+      - member_id
+      - start_date
+      - title
+    WorkoutPlanDetail:
+      type: object
+      description: 'my-program.html: the plan header plus nested Day 1 / Day 2 / ...
+        lists.'
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 150
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days_per_week:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        notes:
+          type: string
+        duration_weeks:
+          type: integer
+          readOnly: true
+        current_week:
+          type: integer
+          readOnly: true
+        progress_percent:
+          type: integer
+          readOnly: true
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanDay'
+          readOnly: true
+      required:
+      - current_week
+      - days
+      - duration_weeks
+      - end_date
+      - id
+      - progress_percent
+      - start_date
+      - title
+    WorkoutPlanList:
+      type: object
+      description: Coach's plan list row (program-list screen).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 150
+        member_name:
+          type: string
+          readOnly: true
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - end_date
+      - id
+      - member_name
+      - start_date
+      - title
+    WorkoutPlanUpdate:
+      type: object
+      description: |-
+        PATCH /workouts/plans/{id}/ — coach edits plan header only.
+        Days/exercises are rebuilt by assigning a new plan (one active plan
+        per member); member/coach/gym are immutable here.
+      properties:
+        title:
+          type: string
+          maxLength: 150
+        goal:
+          type: string
+          maxLength: 150
+        level:
+          oneOf:
+          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        training_days_per_week:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        notes:
+          type: string
+        is_active:
+          type: boolean
+      required:
+      - end_date
+      - start_date
+      - title
+  securitySchemes:
+    jwtCookieAuth:
+      type: apiKey
+      in: cookie
+      name: gym_os_access
+    jwtHeaderAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

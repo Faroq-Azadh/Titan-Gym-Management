@@ -16,12 +16,12 @@ import {
   buildPayload,
   buildSuccess,
   FIELD_MAP,
-  flattenError,
   persianNumber,
-  registerGym,
   REGISTER_CONFIG,
   type RegisterSuccess,
 } from "@/lib/api/register-gym";
+import { useRegisterGym } from "@/lib/hooks/queries/use-register-gym";
+import { ApiError } from "@/lib/api/errors";
 import {
   gymTypeOptions,
   planOptions,
@@ -61,6 +61,8 @@ interface RegisterFormProps {
 }
 
 export function RegisterForm({ onSuccess }: RegisterFormProps) {
+  const registerMutation = useRegisterGym();
+
   const {
     register,
     handleSubmit,
@@ -99,7 +101,9 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const strength = password ? passwordStrength(password) : 0;
   const matches = passwordConfirm ? passwordConfirm === password : null;
 
-  const submitLabel = isSubmitting
+  const isLoading = isSubmitting || registerMutation.isPending;
+
+  const submitLabel = isLoading
     ? "در حال ساخت باشگاه…"
     : plan === "enterprise"
       ? "ساخت باشگاه و ثبت درخواست فروش"
@@ -124,69 +128,77 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     }
   }, [alert]);
 
-  const handleErrors = (status: number, data: Record<string, unknown>) => {
-    if (status === 429) {
-      showAlert(
-        "تعداد درخواست‌ها زیاد بوده است. چند دقیقه صبر کنید و دوباره تلاش کنید.",
-      );
-      return;
-    }
-    if (status >= 500) {
-      showAlert(
-        "خطایی در سرور رخ داد. کمی بعد دوباره تلاش کنید؛ اگر تکرار شد با پشتیبانی تماس بگیرید.",
-      );
-      return;
-    }
-
-    const source = (data.errors ?? data) as Record<string, unknown>;
-    const generalMessages: string[] = [];
-    let firstBad: keyof RegisterGymFormValues | null = null;
-
-    Object.keys(source).forEach((key) => {
-      const message = flattenError(source[key]);
-      if (!message) return;
-      if (
-        key === "non_field_errors" ||
-        key === "detail" ||
-        key === "message" ||
-        key === "__all__"
-      ) {
-        generalMessages.push(message);
-        return;
-      }
-      const target = FIELD_MAP[key];
-      if (target) {
-        setError(target, { message });
-        if (!firstBad) firstBad = target;
-      } else {
-        generalMessages.push(message);
-      }
-    });
-
-    if (generalMessages.length) showAlert(generalMessages.join(" "));
-    else if (!firstBad)
-      showAlert(
-        "ثبت‌نام انجام نشد. اطلاعات واردشده را بررسی کنید و دوباره تلاش کنید.",
-      );
-
-    if (firstBad && !generalMessages.length) setFocus(firstBad);
-  };
-
   const onSubmit = async (values: RegisterGymFormValues) => {
     setAlert(null);
     const payload = buildPayload(values);
 
     try {
-      const { ok, status, data } = await registerGym(payload);
-      if (!ok) {
-        handleErrors(status, data as Record<string, unknown>);
-        return;
-      }
+      const data = await registerMutation.mutateAsync(payload);
       onSuccess?.(buildSuccess(data, payload));
-    } catch {
-      showAlert(
-        "ارتباط با سرور برقرار نشد. اتصال اینترنت خود را بررسی کنید و دوباره تلاش کنید.",
-      );
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.status === 429) {
+          showAlert(
+            "تعداد درخواست‌ها زیاد بوده است. چند دقیقه صبر کنید و دوباره تلاش کنید.",
+          );
+          return;
+        }
+        if (err.status >= 500) {
+          showAlert(
+            "خطایی در سرور رخ داد. کمی بعد دوباره تلاش کنید؛ اگر تکرار شد با پشتیبانی تماس بگیرید.",
+          );
+          return;
+        }
+
+        const generalMessages: string[] = [];
+        let firstBad: keyof RegisterGymFormValues | null = null;
+
+        // Map backend field errors from Django DRF to form fields
+        Object.entries(err.fieldErrors).forEach(([backendKey, messages]) => {
+          const message = messages.join(" ");
+          if (
+            backendKey === "non_field_errors" ||
+            backendKey === "detail" ||
+            backendKey === "message" ||
+            backendKey === "__all__"
+          ) {
+            generalMessages.push(message);
+            return;
+          }
+
+          const target = FIELD_MAP[backendKey];
+          if (target) {
+            setError(target, { message });
+            if (!firstBad) firstBad = target;
+          } else {
+            generalMessages.push(message);
+          }
+        });
+
+        if (
+          err.detail &&
+          !generalMessages.includes(err.detail) &&
+          Object.keys(err.fieldErrors).length === 0
+        ) {
+          generalMessages.push(err.detail);
+        }
+
+        if (generalMessages.length > 0) {
+          showAlert(generalMessages.join(" "));
+        } else if (!firstBad) {
+          showAlert(
+            "ثبت‌نام انجام نشد. اطلاعات واردشده را بررسی کنید و دوباره تلاش کنید.",
+          );
+        }
+
+        if (firstBad && generalMessages.length === 0) {
+          setFocus(firstBad);
+        }
+      } else {
+        showAlert(
+          "ارتباط با سرور برقرار نشد. اتصال اینترنت خود را بررسی کنید و دوباره تلاش کنید.",
+        );
+      }
     }
   };
 
@@ -433,8 +445,8 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
           </label>
         </div>
 
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? (
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? (
             <span
               className="h-[17px] w-[17px] animate-spin rounded-full border-[2.5px] border-white/30 border-t-white"
               aria-hidden

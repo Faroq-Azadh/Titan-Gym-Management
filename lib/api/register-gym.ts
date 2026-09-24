@@ -6,7 +6,7 @@ import type {
 
 export const REGISTER_CONFIG = {
   endpoint:
-    process.env.NEXT_PUBLIC_GYM_REGISTER_ENDPOINT ?? "/api/v1/gyms/register/",
+    process.env.NEXT_PUBLIC_GYM_REGISTER_ENDPOINT ?? "/gyms/register/",
   dashboardUrl: process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "/admin",
   loginUrl: "/login",
   redirectSeconds: 3,

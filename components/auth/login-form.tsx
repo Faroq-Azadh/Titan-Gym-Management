@@ -2,27 +2,37 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/input";
 import {
   loginPasswordSchema,
   type LoginPasswordFormValues,
 } from "@/lib/validations/login";
+import { normalizeDigits } from "@/lib/persian-digits";
+import { useAuth } from "@/lib/auth-context";
+import { ApiError } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
 interface LoginFormProps {
   onSubmit?: (values: LoginPasswordFormValues) => void;
+  onSuccess?: () => void;
 }
 
-export function LoginForm({ onSubmit }: LoginFormProps) {
+export function LoginForm({ onSubmit, onSuccess }: LoginFormProps) {
+  const router = useRouter();
+  const { loginWithPassword } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<LoginPasswordFormValues>({
     resolver: zodResolver(loginPasswordSchema),
@@ -33,12 +43,56 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
     },
   });
 
-  const handleFormSubmit = (values: LoginPasswordFormValues) => {
-    onSubmit?.(values);
+  const handleFormSubmit = async (values: LoginPasswordFormValues) => {
+    if (onSubmit) {
+      onSubmit(values);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setApiError(null);
+
+      const normalizedIdentifier = normalizeDigits(values.identifier.trim());
+
+      const res = await loginWithPassword({
+        identifier: normalizedIdentifier,
+        password: values.password,
+      });
+
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        // Direct users based on their role
+        const role = res?.user?.role;
+        if (role === "OWNER" || role === "COACH") {
+          router.push("/admin");
+        } else {
+          router.push("/admin"); // fallback to dashboard
+        }
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setApiError(err.detail || "نام کاربری یا رمز عبور اشتباه است.");
+      } else if (err instanceof Error) {
+        setApiError(err.message);
+      } else {
+        setApiError("خطایی در ورود رخ داد. لطفاً مجدداً تلاش کنید.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} noValidate>
+      {apiError && (
+        <div className="mb-4 flex items-center gap-2.5 rounded-[10px] border border-rose-200 bg-rose-50/90 p-3 text-[13px] text-rose-700 animate-in fade-in duration-200">
+          <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+          <span>{apiError}</span>
+        </div>
+      )}
+
       <div className="mb-4">
         <label
           htmlFor="login-id"
@@ -53,6 +107,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
           autoComplete="username"
           error={!!errors.identifier}
           icon={<Mail strokeWidth={2} />}
+          disabled={isLoading}
           {...register("identifier")}
         />
         {errors.identifier && (
@@ -72,6 +127,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
           type={showPassword ? "text" : "password"}
           placeholder="رمز عبور خود را وارد کنید"
           autoComplete="current-password"
+          disabled={isLoading}
           error={!!errors.password}
           icon={<Lock strokeWidth={2} />}
           toggle={
@@ -79,6 +135,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
               aria-label={showPassword ? "مخفی کردن رمز عبور" : "نمایش رمز عبور"}
+              tabIndex={-1}
             >
               {showPassword ? (
                 <EyeOff strokeWidth={2} />
@@ -99,10 +156,11 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
           <input
             type="checkbox"
             id="remember"
-            className="h-[17px] w-[17px] rounded accent-primary"
+            disabled={isLoading}
+            className="h-[17px] w-[17px] rounded accent-primary cursor-pointer"
             {...register("remember")}
           />
-          <label htmlFor="remember" className="text-[13.5px] text-ink-soft">
+          <label htmlFor="remember" className="text-[13.5px] text-ink-soft cursor-pointer">
             مرا به خاطر بسپار
           </label>
         </div>
@@ -116,7 +174,16 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
         </Link>
       </div>
 
-      <Button type="submit">ورود به پنل</Button>
+      <Button type="submit" disabled={isLoading}>
+        {isLoading ? (
+          <span className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            در حال ورود...
+          </span>
+        ) : (
+          "ورود به پنل"
+        )}
+      </Button>
     </form>
   );
 }
