@@ -12,7 +12,7 @@ export function BookingsKpi({
   confirmedCount,
   pendingCount,
   cancelledCount,
-  todayCount = "۱۴۸",
+  todayCount = "۰",
 }: BookingsKpiProps) {
   return (
     <div className="mb-[18px] grid grid-cols-1 gap-[18px] min-[640px]:grid-cols-2 min-[1101px]:grid-cols-4">

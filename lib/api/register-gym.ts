@@ -15,11 +15,25 @@ export const REGISTER_CONFIG = {
   freeMaxCoaches: 3,
 } as const;
 
-export const PLAN_LABELS: Record<PlanId, string> = {
+export type GymTypeEnum =
+  | "fitness"
+  | "crossfit"
+  | "martial_arts"
+  | "aquatic"
+  | "multipurpose"
+  | "other";
+
+export type RequestedPlanEnum = "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
+
+export const PLAN_LABELS: Record<string, string> = {
   free: "رایگان",
   basic: "پایه",
   pro: "حرفه‌ای",
   enterprise: "سازمانی",
+  FREE: "رایگان",
+  BASIC: "پایه",
+  PRO: "حرفه‌ای",
+  ENTERPRISE: "سازمانی",
 };
 
 /** نگاشت نام فیلد بک‌اند به فیلد فرم */
@@ -43,28 +57,58 @@ export const FIELD_MAP: Record<string, keyof RegisterGymFormValues> = {
   password_confirm: "passwordConfirm",
   password2: "passwordConfirm",
   confirm_password: "passwordConfirm",
+  accepted_terms: "terms",
+  terms: "terms",
 };
 
+/**
+ * Request payload according to OpenAPI schema GymRegister
+ */
 export interface RegisterGymPayload {
   full_name: string;
   gym_name: string;
   phone: string;
   email: string;
   city: string;
-  gym_type: string;
-  plan: string;
+  gym_type: GymTypeEnum | string;
+  plan: RequestedPlanEnum | string;
   password: string;
   password_confirm: string;
   accepted_terms: boolean;
 }
 
 export interface RegisterGymResponse {
-  errors?: Record<string, unknown>;
-  gym?: { name?: string; gym_name?: string; plan?: string; trial_ends_at?: string };
-  user?: { email?: string };
+  id?: number | string;
+  full_name?: string;
   gym_name?: string;
+  phone?: string;
   email?: string;
+  city?: string;
+  gym_type?: string;
   plan?: string;
+  accepted_terms?: boolean;
+  errors?: Record<string, unknown>;
+  gym?: {
+    id?: number | string;
+    name?: string;
+    gym_name?: string;
+    plan?: string;
+    trial_ends_at?: string;
+    city?: string;
+  };
+  user?: {
+    id?: number | string;
+    email?: string;
+    full_name?: string;
+    phone?: string;
+  };
+  tokens?: {
+    access?: string;
+    refresh?: string;
+  };
+  access?: string;
+  refresh?: string;
+  token?: string;
   trial_ends_at?: string;
   plan_expires_at?: string;
   payment_required?: boolean;
@@ -77,6 +121,7 @@ export interface RegisterGymResponse {
 export function buildPayload(
   values: RegisterGymFormValues,
 ): RegisterGymPayload {
+  const planVal = (values.plan ? values.plan.toUpperCase() : "FREE") as RequestedPlanEnum;
   return {
     full_name: values.fullName.trim().replace(/\s+/g, " "),
     gym_name: values.gymName.trim(),
@@ -84,18 +129,11 @@ export function buildPayload(
     email: values.email.trim().toLowerCase(),
     city: values.city.trim(),
     gym_type: values.gymType,
-    plan: values.plan,
+    plan: planVal,
     password: values.password,
     password_confirm: values.passwordConfirm,
-    accepted_terms: true,
+    accepted_terms: Boolean(values.terms),
   };
-}
-
-function getCookie(name: string): string {
-  const match = document.cookie.match(
-    "(^|;)\\s*" + name + "\\s*=\\s*([^;]+)",
-  );
-  return match ? decodeURIComponent(match.pop() as string) : "";
 }
 
 export async function registerGym(payload: RegisterGymPayload): Promise<{
@@ -103,28 +141,25 @@ export async function registerGym(payload: RegisterGymPayload): Promise<{
   status: number;
   data: RegisterGymResponse;
 }> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  };
-  const csrf = getCookie("csrftoken");
-  if (csrf) headers["X-CSRFToken"] = csrf;
-
-  const response = await fetch(REGISTER_CONFIG.endpoint, {
-    method: "POST",
-    headers,
-    credentials: "include", // لازم است تا کوکی‌های JWT ست شوند
-    body: JSON.stringify(payload),
-  });
-
-  let data: RegisterGymResponse = {};
   try {
-    data = (await response.json()) as RegisterGymResponse;
-  } catch {
-    data = {};
+    const { gymsService } = await import("./services/gyms.service");
+    const data = await gymsService.registerGym(payload);
+    return { ok: true, status: 201, data };
+  } catch (error: unknown) {
+    const { ApiError } = await import("./errors");
+    if (error instanceof ApiError) {
+      return {
+        ok: false,
+        status: error.status,
+        data: { errors: error.fieldErrors, detail: error.detail } as RegisterGymResponse,
+      };
+    }
+    return {
+      ok: false,
+      status: 500,
+      data: { errors: { non_field_errors: ["خطای نامشخص رخ داده است."] } } as RegisterGymResponse,
+    };
   }
-
-  return { ok: response.ok, status: response.status, data };
 }
 
 export function flattenError(value: unknown): string {

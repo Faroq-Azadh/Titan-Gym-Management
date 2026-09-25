@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import { useGymMe } from "@/lib/hooks/queries/use-gym-me";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { ProfileSummaryCard } from "@/components/admin/profile/profile-summary-card";
@@ -21,26 +23,59 @@ type ProfileTab = "personal" | "club" | "security" | "notif";
 export default function AdminProfilePage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>("personal");
+  const { user: authUser } = useAuth();
+  const { data: gym } = useGymMe();
 
   const [user, setUser] = useState<ProfileUserData>({
-    firstName: "اشکان",
-    lastName: "وکیلی",
-    email: "ascendp07@gmail.com",
-    phone: "۰۹۱۲۳۴۵۶۷۸۹",
+    firstName: "مدیر",
+    lastName: "باشگاه",
+    email: "",
+    phone: "",
     role: "مدیر باشگاه",
     language: "فارسی",
-    about: "مدیر باشگاه ورزشی تیتان، علاقه‌مند به مدیریت هوشمند و تجربه کاربری اعضا.",
-    branch: "تیتان — مرکزی",
-    memberSince: "فروردین ۱۴۰۲",
+    about: "مدیر باشگاه ورزشی تیتان، علاقه‌مند به مدیریت هوشمند و ارتقای خدمات ورزشی.",
+    branch: "شعبه اصلی",
+    memberSince: "۱۴۰۳",
   });
 
   const [club, setClub] = useState<ProfileClubData>({
-    clubName: "باشگاه ورزشی تیتان",
-    phone: "۰۲۱۸۸۷۷۶۶۵۵",
+    clubName: "باشگاه ورزشی",
+    phone: "",
     startHour: "۰۶:۰۰",
     endHour: "۲۳:۰۰",
-    address: "تهران، خیابان ولیعصر، بالاتر از میدان ونک، پلاک ۱۲۸، طبقه همکف",
+    address: "",
   });
+
+  useEffect(() => {
+    if (authUser) {
+      const parts = (authUser.full_name || "").trim().split(/\s+/);
+      const firstName = parts[0] || "مدیر";
+      const lastName = parts.slice(1).join(" ") || "";
+      const memberSince = authUser.date_joined
+        ? new Date(authUser.date_joined).toLocaleDateString("fa-IR", { year: "numeric", month: "long" })
+        : "۱۴۰۳";
+
+      setUser((prev) => ({
+        ...prev,
+        firstName,
+        lastName,
+        email: authUser.email || prev.email,
+        phone: authUser.phone_number || prev.phone,
+        memberSince,
+      }));
+    }
+  }, [authUser]);
+
+  useEffect(() => {
+    if (gym) {
+      setClub((prev) => ({
+        ...prev,
+        clubName: gym.name || prev.clubName,
+        phone: gym.phone_number || prev.phone,
+        address: gym.address || prev.address,
+      }));
+    }
+  }, [gym]);
 
   const [security, setSecurity] = useState<ProfileSecurityData>({
     twoFactorEnabled: true,

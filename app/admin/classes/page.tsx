@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useClasses, useCreateClass, useUpdateClass, useDeleteClass } from "@/lib/hooks/queries/use-classes";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { ClassesKpi } from "@/components/admin/classes/classes-kpi";
@@ -19,10 +20,28 @@ import { cn } from "@/lib/utils";
 
 type ViewMode = "month" | "week" | "day";
 
+const DAYS_MAP: Record<number, DayOfWeek> = {
+  0: "شنبه",
+  1: "یکشنبه",
+  2: "دوشنبه",
+  3: "سه‌شنبه",
+  4: "چهارشنبه",
+  5: "پنجشنبه",
+  6: "شنبه",
+};
+
+const DAYS_REV_MAP: Record<string, number> = {
+  "شنبه": 0,
+  "یکشنبه": 1,
+  "دوشنبه": 2,
+  "سه‌شنبه": 3,
+  "چهارشنبه": 4,
+  "پنجشنبه": 5,
+};
+
 export default function AdminClassesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("week");
-  const [classes, setClasses] = useState<ClassSession[]>(INITIAL_CLASSES);
   const [selectedClass, setSelectedClass] = useState<ClassSession | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassSession | null>(null);
@@ -30,6 +49,41 @@ export default function AdminClassesPage() {
     day: DayOfWeek;
     time: TimeSlot;
   }>({ day: "شنبه", time: "۰۸:۰۰" });
+
+  const { data: backendClasses } = useClasses();
+  const createClassMutation = useCreateClass();
+  const updateClassMutation = useUpdateClass();
+  const deleteClassMutation = useDeleteClass();
+
+  const classes: ClassSession[] = useMemo(() => {
+    const list: any[] = Array.isArray(backendClasses)
+      ? backendClasses
+      : Array.isArray((backendClasses as any)?.results)
+        ? (backendClasses as any).results
+        : Array.isArray((backendClasses as any)?.classes)
+          ? (backendClasses as any).classes
+          : [];
+
+    return list.map((c) => {
+      const day = DAYS_MAP[c.day_of_week] || "شنبه";
+      const time = (c.start_time ? c.start_time.slice(0, 5) : "۰۸:۰۰") as TimeSlot;
+      const coachName = c.coach_name || "مربی باشگاه";
+      return {
+        id: String(c.id),
+        name: c.title,
+        category: "بدنسازی",
+        coach: coachName,
+        coachShort: coachName.split(" ")[0] || "مربی",
+        day,
+        time,
+        capacity: c.capacity || 20,
+        enrolled: c.booked || 0,
+        theme: "emerald" as const,
+        room: "سالن اصلی",
+        level: "همه سطوح" as const,
+      };
+    });
+  }, [backendClasses]);
 
   // KPIs Calculations
   const activeClassesCount = classes.length;
@@ -40,30 +94,52 @@ export default function AdminClassesPage() {
     totalCapacity > 0 ? Math.round((totalEnrolled / totalCapacity) * 100) : 0;
   const fullClassesCount = classes.filter((c) => c.enrolled >= c.capacity).length;
 
-  const handleSaveClass = (
+  const handleSaveClass = async (
     classData: Omit<ClassSession, "id">,
     editId?: string,
   ) => {
-    if (editId) {
-      setClasses((prev) =>
-        prev.map((c) => (c.id === editId ? { ...classData, id: editId } : c)),
-      );
-      if (selectedClass?.id === editId) {
-        setSelectedClass({ ...classData, id: editId });
+    const day_of_week = DAYS_REV_MAP[classData.day] ?? 0;
+    const startTime = classData.time.includes(":") ? classData.time : "08:00";
+
+    try {
+      if (editId) {
+        await updateClassMutation.mutateAsync({
+          id: editId,
+          payload: {
+            title: classData.name,
+            day_of_week,
+            start_time: startTime,
+            duration_minutes: 60,
+            capacity: classData.capacity,
+          },
+        });
+        if (selectedClass?.id === editId) {
+          setSelectedClass({ ...classData, id: editId });
+        }
+      } else {
+        await createClassMutation.mutateAsync({
+          title: classData.name,
+          day_of_week,
+          start_time: startTime,
+          duration_minutes: 60,
+          capacity: classData.capacity,
+        });
       }
-    } else {
-      const newClass: ClassSession = {
-        ...classData,
-        id: `cls-${Date.now()}`,
-      };
-      setClasses((prev) => [...prev, newClass]);
+    } catch {
+      // Handled
     }
   };
 
-  const handleDeleteClass = (id: string) => {
-    setClasses((prev) => prev.filter((c) => c.id !== id));
-    if (selectedClass?.id === id) {
-      setSelectedClass(null);
+  const handleDeleteClass = async (id: string) => {
+    if (typeof window !== "undefined" && window.confirm("آیا از حذف این کلاس اطمینان دارید؟")) {
+      try {
+        await deleteClassMutation.mutateAsync(id);
+      } catch {
+        // Handled
+      }
+      if (selectedClass?.id === id) {
+        setSelectedClass(null);
+      }
     }
   };
 

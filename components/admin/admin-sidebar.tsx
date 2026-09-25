@@ -4,6 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import { useGymMe } from "@/lib/hooks/queries/use-gym-me";
+import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
+import { persianNumber } from "@/lib/api/register-gym";
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -12,6 +16,41 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const { data: gym } = useGymMe();
+  const { data: dashboard } = useOwnerDashboard();
+
+  const getRoleLabel = (role?: string) => {
+    switch (role) {
+      case "OWNER":
+        return "مدیر باشگاه";
+      case "COACH":
+        return "مربی";
+      case "MEMBER":
+        return "ورزشکار";
+      default:
+        return "مدیر باشگاه";
+    }
+  };
+
+  const getInitials = (name?: string) => {
+    if (!name) return "تی";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] || "") + (parts[1][0] || "");
+    }
+    return name.slice(0, 2);
+  };
+
+  const activeMembersBadge =
+    dashboard?.active_members !== undefined && dashboard.active_members > 0
+      ? Number(dashboard.active_members).toLocaleString("fa-IR")
+      : undefined;
+
+  const todayClassesBadge =
+    dashboard?.todays_classes?.length !== undefined && dashboard.todays_classes.length > 0
+      ? Number(dashboard.todays_classes.length).toLocaleString("fa-IR")
+      : undefined;
 
   const navManagement = [
     {
@@ -52,7 +91,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       ),
-      badge: "۱٬۲۴۸",
+      badge: activeMembersBadge,
     },
     {
       title: "مربیان",
@@ -108,7 +147,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           <path d="M16 2v4M8 2v4M3 10h18" />
         </svg>
       ),
-      badge: "۲۴",
+      badge: todayClassesBadge,
     },
     {
       title: "پلن‌ها",
@@ -208,7 +247,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       >
         {/* Sidebar head with logo */}
         <div className="flex items-center justify-between px-[22px] pt-[22px] pb-[16px]">
-          <Link href="/admin" className="flex items-center gap-[10px] text-[20px] font-extrabold text-ink">
+          <Link href="/admin" className="flex items-center gap-[10px] text-[18px] font-extrabold text-ink truncate">
             <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-primary to-cyan">
               <svg
                 viewBox="0 0 24 24"
@@ -221,7 +260,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                 <path d="M4 12h4M16 12h4M8 7v10M16 7v10M8 12h8" />
               </svg>
             </span>
-            تیتان
+            <span className="truncate">{gym?.name || "باشگاه ورزشی"}</span>
           </Link>
         </div>
 
@@ -294,12 +333,24 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
             href="/admin/profile"
             className="flex cursor-pointer items-center gap-[11px] rounded-[12px] px-[11px] py-[9px] transition-colors duration-180 hover:bg-bg"
           >
-            <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] bg-linear-to-br from-primary to-cyan text-[14px] font-extrabold text-ink">
-              آو
-            </span>
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.full_name || "کاربر"}
+                className="h-[38px] w-[38px] shrink-0 rounded-[11px] object-cover"
+              />
+            ) : (
+              <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] bg-linear-to-br from-primary to-cyan text-[14px] font-extrabold text-ink">
+                {getInitials(user?.full_name)}
+              </span>
+            )}
             <div className="flex min-w-0 flex-col leading-[1.4]">
-              <span className="truncate text-[13.5px] font-bold text-ink">اشکان وکیلی</span>
-              <span className="truncate text-[11.5px] text-ink-faint">مدیر باشگاه</span>
+              <span className="truncate text-[13.5px] font-bold text-ink">
+                {user?.full_name || "صاحب باشگاه"}
+              </span>
+              <span className="truncate text-[11.5px] text-ink-faint">
+                {getRoleLabel(user?.role)}
+              </span>
             </div>
             <ChevronDown className="mr-auto h-[16px] w-[16px] text-ink-faint" />
           </Link>

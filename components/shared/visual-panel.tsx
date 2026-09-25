@@ -57,7 +57,7 @@ export function VisualPanel({ variant }: VisualPanelProps) {
       />
 
       <div className="relative z-[1]">
-        <Logo href={variant === "register" ? "/" : undefined} />
+        <Logo href="/" />
       </div>
 
       <div

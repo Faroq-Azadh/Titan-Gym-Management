@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useTransition } from "react";
+import { useState, useRef, useEffect, useTransition, useCallback } from "react";
 import Link from "next/link";
 import {
   Smartphone,
@@ -197,16 +197,17 @@ export function ForgotPasswordForm() {
     });
   };
 
-  const handleStep2Submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setOtpError("");
-    setGeneralError("");
+  const lastSubmittedForgotOtpRef = useRef<string>("");
 
-    const code = normalizeDigits(otp.join(""));
+  const verifyForgotOtp = useCallback((codeToVerify: string) => {
+    const code = normalizeDigits(codeToVerify);
     if (code.length < 6) {
       setOtpError("کد ۶ رقمی را کامل وارد کنید.");
       return;
     }
+    setOtpError("");
+    setGeneralError("");
+    lastSubmittedForgotOtpRef.current = code;
 
     startTransition(async () => {
       try {
@@ -230,7 +231,25 @@ export function ForgotPasswordForm() {
         }
       }
     });
+  }, [phone]);
+
+  const handleStep2Submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    verifyForgotOtp(otp.join(""));
   };
+
+  // Auto-submit OTP in step 2 as soon as all 6 digits are entered
+  useEffect(() => {
+    const fullOtp = otp.join("");
+    if (
+      step === 2 &&
+      fullOtp.length === 6 &&
+      !isPending &&
+      lastSubmittedForgotOtpRef.current !== fullOtp
+    ) {
+      verifyForgotOtp(fullOtp);
+    }
+  }, [otp, step, isPending, verifyForgotOtp]);
 
   // --- STEP 3 HANDLER: Reset Password ---
   const handleStep3Submit = (e: React.FormEvent) => {

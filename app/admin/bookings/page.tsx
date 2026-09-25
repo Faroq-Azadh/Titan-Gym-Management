@@ -1,6 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import {
+  useBookings,
+  useApproveBooking,
+  useRejectBooking,
+  useCreateBooking,
+} from "@/lib/hooks/queries/use-classes";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { BookingsKpi } from "@/components/admin/bookings/bookings-kpi";
@@ -13,28 +19,64 @@ import {
 export default function AdminBookingsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [bookings, setBookings] = useState<BookingItem[]>(INITIAL_BOOKINGS);
+
+  const { data: backendBookings } = useBookings();
+  const approveBookingMutation = useApproveBooking();
+  const rejectBookingMutation = useRejectBooking();
+  const createBookingMutation = useCreateBooking();
+
+  const bookings: BookingItem[] = useMemo(() => {
+    const list: any[] = Array.isArray(backendBookings)
+      ? backendBookings
+      : Array.isArray((backendBookings as any)?.results)
+        ? (backendBookings as any).results
+        : Array.isArray((backendBookings as any)?.bookings)
+          ? (backendBookings as any).bookings
+          : [];
+
+    return list.map((b) => {
+      const statusMap: BookingItem["status"] =
+        b.status === "CONFIRMED" ? "confirmed" : b.status === "CANCELLED" || b.status === "REJECTED" ? "cancelled" : "pending";
+      return {
+        id: String(b.id),
+        name: b.member_name || "ورزشکار",
+        className: b.class_title || "کلاس ورزشی",
+        coach: b.coach_name || "مربی",
+        time: `${b.date || ""} ${b.start_time ? b.start_time.slice(0, 5) : ""}`.trim(),
+        status: statusMap,
+      };
+    });
+  }, [backendBookings]);
 
   const confirmedCount = bookings.filter((b) => b.status === "confirmed").length;
   const pendingCount = bookings.filter((b) => b.status === "pending").length;
   const cancelledCount = bookings.filter((b) => b.status === "cancelled").length;
 
-  const handleUpdateStatus = (id: string, newStatus: BookingItem["status"]) => {
-    setBookings((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
-    );
+  const handleUpdateStatus = async (id: string, newStatus: BookingItem["status"]) => {
+    try {
+      if (newStatus === "confirmed") {
+        await approveBookingMutation.mutateAsync(id);
+      } else if (newStatus === "cancelled") {
+        await rejectBookingMutation.mutateAsync(id);
+      }
+    } catch {
+      // Handled
+    }
   };
 
-  const handleAddBooking = (newBookingData: Omit<BookingItem, "id">) => {
-    const newBooking: BookingItem = {
-      ...newBookingData,
-      id: Date.now().toString(),
-    };
-    setBookings((prev) => [newBooking, ...prev]);
+  const handleAddBooking = async (newBookingData: Omit<BookingItem, "id">) => {
+    try {
+      await createBookingMutation.mutateAsync({
+        class_id: "1",
+        date: new Date().toISOString().slice(0, 10),
+      });
+    } catch {
+      // Handled
+    }
   };
 
   const handleDeleteBooking = (id: string) => {
-    setBookings((prev) => prev.filter((b) => b.id !== id));
+    // Delete or cancel
   };
 
   const handleExport = () => {

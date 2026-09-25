@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
+import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { KpiSection } from "@/components/admin/kpi-section";
@@ -13,6 +15,8 @@ import { RecentMembersTable } from "@/components/admin/recent-members-table";
 export default function AdminDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [persianDate, setPersianDate] = useState("امروز · در حال بارگذاری…");
+  const { user } = useAuth();
+  const { data: dashboard, isLoading } = useOwnerDashboard();
 
   useEffect(() => {
     try {
@@ -27,6 +31,8 @@ export default function AdminDashboardPage() {
       setPersianDate("داشبورد مدیریت باشگاه");
     }
   }, []);
+
+  const firstName = user?.full_name ? user.full_name.trim().split(" ")[0] : "مدیر عزیز";
 
   return (
     <div className="flex min-h-screen">
@@ -47,7 +53,7 @@ export default function AdminDashboardPage() {
           <div className="mb-[24px] flex flex-wrap items-end justify-between gap-[16px]">
             <div>
               <h1 className="text-[22px] font-extrabold tracking-[-0.01em] text-ink min-[640px]:text-[26px]">
-                سلام اشکان 👋
+                سلام {firstName} 👋
               </h1>
               <div className="mt-[5px] text-[14px] text-ink-faint">
                 {persianDate}

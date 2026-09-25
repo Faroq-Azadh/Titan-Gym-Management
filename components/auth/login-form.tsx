@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -43,6 +43,24 @@ export function LoginForm({ onSubmit, onSuccess }: LoginFormProps) {
     },
   });
 
+  // Preload saved credentials if "Remember Me" was previously selected
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const isRemembered = localStorage.getItem("titan_remember_me") === "true";
+        if (isRemembered) {
+          const savedId = localStorage.getItem("titan_saved_identifier") || "";
+          const savedPass = localStorage.getItem("titan_saved_password") || "";
+          if (savedId) setValue("identifier", savedId);
+          if (savedPass) setValue("password", savedPass);
+          setValue("remember", true);
+        }
+      } catch {
+        // Ignore localStorage access restrictions
+      }
+    }
+  }, [setValue]);
+
   const handleFormSubmit = async (values: LoginPasswordFormValues) => {
     if (onSubmit) {
       onSubmit(values);
@@ -59,6 +77,23 @@ export function LoginForm({ onSubmit, onSuccess }: LoginFormProps) {
         identifier: normalizedIdentifier,
         password: values.password,
       });
+
+      // Handle Remember Me persistence
+      if (typeof window !== "undefined") {
+        try {
+          if (values.remember) {
+            localStorage.setItem("titan_remember_me", "true");
+            localStorage.setItem("titan_saved_identifier", normalizedIdentifier);
+            localStorage.setItem("titan_saved_password", values.password);
+          } else {
+            localStorage.removeItem("titan_remember_me");
+            localStorage.removeItem("titan_saved_identifier");
+            localStorage.removeItem("titan_saved_password");
+          }
+        } catch {
+          // Ignore storage errors
+        }
+      }
 
       if (onSuccess) {
         onSuccess();

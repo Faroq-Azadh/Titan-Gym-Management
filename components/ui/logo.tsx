@@ -64,10 +64,11 @@ export function Logo({
   return <div className={classes}>{content}</div>;
 }
 
-export function MobileLogo({ className }: { className?: string }) {
+export function MobileLogo({ className, href = "/" }: { className?: string; href?: string }) {
   return (
     <Logo
       variant="dark"
+      href={href}
       className={cn("mb-8 hidden max-[980px]:flex", className)}
     />
   );

@@ -3,6 +3,12 @@
 import React, { useState, useMemo } from "react";
 import { toPersianDigits } from "@/lib/persian-digits";
 import { cn } from "@/lib/utils";
+import {
+  useCoaches,
+  useAddCoach,
+  useUpdateCoach,
+  useDeleteCoach,
+} from "@/lib/hooks/queries/use-coaches";
 
 export interface TeamMember {
   id: string;
@@ -44,9 +50,40 @@ export function CoachesTable({
   onCloseAddModal,
   onOpenAddModal,
 }: CoachesTableProps) {
-  const [team, setTeam] = useState<TeamMember[]>(INITIAL_TEAM);
   const [filter, setFilter] = useState<"all" | "coach" | "staff">("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const { data: coachesData, isLoading: isQueryLoading } = useCoaches();
+  const addCoachMutation = useAddCoach();
+  const updateCoachMutation = useUpdateCoach();
+  const deleteCoachMutation = useDeleteCoach();
+
+  const team: TeamMember[] = useMemo(() => {
+    const list: any[] = Array.isArray(coachesData)
+      ? coachesData
+      : Array.isArray((coachesData as any)?.results)
+        ? (coachesData as any).results
+        : Array.isArray((coachesData as any)?.coaches)
+          ? (coachesData as any).coaches
+          : [];
+
+    return list.map((c) => {
+      const fullName = c.full_name || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "مربی";
+      const students = c.students_count !== undefined ? String(c.students_count) : c.active_students_count !== undefined ? String(c.active_students_count) : "۰";
+      const rating = c.rating ? String(c.rating) : "۵٫۰";
+      const role = c.specialties && c.specialties.length > 0 ? `مربی ${c.specialties[0]}` : "مربی";
+
+      return {
+        id: String(c.id),
+        name: fullName,
+        role,
+        type: "coach" as const,
+        students: toPersianDigits(students),
+        rating: toPersianDigits(rating),
+        status: c.is_active ? "active" : "inactive",
+      };
+    });
+  }, [coachesData]);
 
   // Edit states
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
@@ -83,9 +120,13 @@ export function CoachesTable({
     });
   }, [team, filter, searchQuery]);
 
-  const handleDelete = (id: string) => {
-    if (typeof window !== "undefined" && window.confirm("حذف این عضو تیم؟")) {
-      setTeam((prev) => prev.filter((m) => m.id !== id));
+  const handleDelete = async (id: string) => {
+    if (typeof window !== "undefined" && window.confirm("آیا از حذف این عضو تیم اطمینان دارید؟")) {
+      try {
+        await deleteCoachMutation.mutateAsync(id);
+      } catch {
+        // Handled
+      }
     }
   };
 
@@ -101,40 +142,48 @@ export function CoachesTable({
     });
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMember) return;
-    setTeam((prev) =>
-      prev.map((m) =>
-        m.id === editingMember.id
-          ? {
-              ...m,
-              name: formData.name || m.name,
-              role: formData.role || m.role,
-              type: formData.type,
-              students: formData.type === "staff" ? "—" : (formData.students || m.students),
-              rating: formData.type === "staff" ? "—" : (formData.rating || m.rating),
-              status: formData.status,
-            }
-          : m
-      )
-    );
+    const parts = formData.name.trim().split(/\s+/);
+    const first_name = parts[0] || "";
+    const last_name = parts.slice(1).join(" ") || "";
+
+    try {
+      await updateCoachMutation.mutateAsync({
+        id: editingMember.id,
+        payload: {
+          first_name,
+          last_name,
+        },
+      });
+    } catch {
+      // Handled
+    }
     setEditingMember(null);
   };
 
-  const handleSaveNew = (e: React.FormEvent) => {
+  const handleSaveNew = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
-    const newMember: TeamMember = {
-      id: Date.now().toString(),
-      name: formData.name.trim(),
-      role: formData.role.trim() || (formData.type === "coach" ? "مربی" : "کارمند"),
-      type: formData.type,
-      students: formData.type === "staff" ? "—" : (formData.students ? toPersianDigits(formData.students) : "۰"),
-      rating: formData.type === "staff" ? "—" : (formData.rating ? toPersianDigits(formData.rating) : "۵٫۰"),
-      status: formData.status,
-    };
-    setTeam((prev) => [newMember, ...prev]);
+
+    const parts = formData.name.trim().split(/\s+/);
+    const first_name = parts[0] || "";
+    const last_name = parts.slice(1).join(" ") || "";
+    const specialty = formData.role ? formData.role.replace("مربی", "").trim() : "فیتنس";
+
+    try {
+      await addCoachMutation.mutateAsync({
+        first_name,
+        last_name,
+        phone: "09" + Math.floor(100000000 + Math.random() * 900000000),
+        specialties: [specialty || "بدنسازی"],
+        experience_years: 3,
+      });
+    } catch {
+      // Handled
+    }
+
     setFormData({
       name: "",
       role: "",

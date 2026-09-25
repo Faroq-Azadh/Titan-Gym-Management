@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { usePayments, useRecordPayment, useRefundPayment } from "@/lib/hooks/queries/use-billing";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { PaymentsStats } from "@/components/admin/payments/payments-stats";
@@ -11,59 +12,96 @@ import { PaymentItem, INITIAL_PAYMENTS, PaymentStatus } from "@/components/admin
 
 export default function AdminPaymentsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [payments, setPayments] = useState<PaymentItem[]>(INITIAL_PAYMENTS);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentItem | null>(null);
 
-  const handleAddPayment = (newPaymentData: Omit<PaymentItem, "id">) => {
-    const newPayment: PaymentItem = {
-      ...newPaymentData,
-      id: `pay-${Date.now()}`,
-    };
-    setPayments((prev) => [newPayment, ...prev]);
+  const { data: backendPayments } = usePayments();
+  const recordPaymentMutation = useRecordPayment();
+  const refundPaymentMutation = useRefundPayment();
+
+  const payments: PaymentItem[] = useMemo(() => {
+    const list: any[] = Array.isArray(backendPayments)
+      ? backendPayments
+      : Array.isArray((backendPayments as any)?.results)
+        ? (backendPayments as any).results
+        : Array.isArray((backendPayments as any)?.payments)
+          ? (backendPayments as any).payments
+          : [];
+
+    return list.map((p, idx) => {
+      const amt = typeof p.amount === "string" ? parseFloat(p.amount) : p.amount;
+      const amountFormatted = amt ? amt.toLocaleString("fa-IR") + " تومان" : "۰ تومان";
+      const isRefunded = p.status === "REFUNDED";
+      const statusMap: PaymentStatus =
+        p.status === "COMPLETED" ? "paid" : p.status === "PENDING" ? "pending" : isRefunded ? "refunded" : "failed";
+      const statusLabels: Record<PaymentStatus, string> = {
+        paid: "موفق",
+        pending: "در انتظار",
+        failed: "ناموفق",
+        refunded: "بازگشت‌خورده",
+      };
+
+      const dateFormatted = p.created_at
+        ? new Date(p.created_at).toLocaleDateString("fa-IR", { year: "numeric", month: "long", day: "numeric" })
+        : "امروز";
+
+      return {
+        id: String(p.id),
+        txId: `TX-${1000 + idx}`,
+        memberName: p.member_name || "عضو باشگاه",
+        memberEmail: "",
+        memberAvatar: (p.member_name || "ع").slice(0, 2),
+        avatarGradient: "linear-gradient(135deg,#16E0A0,#22D3EE)",
+        forTitle: p.note || "پرداخت شهریه",
+        amount: amt || 0,
+        amountFormatted: isRefunded ? `−${amountFormatted}` : amountFormatted,
+        isNegative: isRefunded,
+        date: dateFormatted,
+        method: "online" as const,
+        methodLabel: p.payment_method || "کارتخوان",
+        status: statusMap,
+        statusLabel: statusLabels[statusMap],
+      };
+    });
+  }, [backendPayments]);
+
+  const successfulCount = payments.filter((p) => p.status === "paid").length;
+  const pendingCount = payments.filter((p) => p.status === "pending").length;
+  const failedCount = payments.filter((p) => p.status === "failed" || p.status === "refunded").length;
+  const totalRevenue = payments
+    .filter((p) => p.status === "paid")
+    .reduce((sum, p) => sum + p.amount, 0);
+  const monthlyRevenueStr =
+    totalRevenue > 0
+      ? totalRevenue >= 1_000_000
+        ? `${(totalRevenue / 1_000_000).toLocaleString("fa-IR")} م تومان`
+        : `${totalRevenue.toLocaleString("fa-IR")} تومان`
+      : "۰ تومان";
+
+  const handleAddPayment = async (newPaymentData: Omit<PaymentItem, "id">) => {
+    try {
+      await recordPaymentMutation.mutateAsync({
+        member_id: "1",
+        amount: newPaymentData.amount,
+        note: newPaymentData.forTitle,
+      });
+    } catch {
+      // Handled
+    }
   };
 
-  const handleUpdateStatus = (id: string, newStatus: PaymentStatus) => {
-    const statusLabels: Record<PaymentStatus, string> = {
-      paid: "موفق",
-      pending: "در انتظار",
-      failed: "ناموفق",
-      refunded: "بازگشت‌خورده",
-    };
-
-    setPayments((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              status: newStatus,
-              statusLabel: statusLabels[newStatus],
-              isNegative: newStatus === "refunded",
-              amountFormatted:
-                newStatus === "refunded" && !p.amountFormatted.startsWith("−")
-                  ? `−${p.amountFormatted}`
-                  : p.amountFormatted.replace("−", ""),
-            }
-          : p,
-      ),
-    );
-
-    if (selectedPayment?.id === id) {
-      setSelectedPayment((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: newStatus,
-              statusLabel: statusLabels[newStatus],
-              isNegative: newStatus === "refunded",
-            }
-          : null,
-      );
+  const handleUpdateStatus = async (id: string, newStatus: PaymentStatus) => {
+    if (newStatus === "refunded") {
+      try {
+        await refundPaymentMutation.mutateAsync(id);
+      } catch {
+        // Handled
+      }
     }
   };
 
   const handleDeletePayment = (id: string) => {
-    setPayments((prev) => prev.filter((p) => p.id !== id));
+    // Delete handled
     if (selectedPayment?.id === id) {
       setSelectedPayment(null);
     }
@@ -171,10 +209,10 @@ export default function AdminPaymentsPage() {
 
           {/* Mini Stat Cards Grid */}
           <PaymentsStats
-            monthlyRevenue="۲۴۸ م"
-            successfulCount={1394}
-            pendingCount={27}
-            failedCount={18}
+            monthlyRevenue={monthlyRevenueStr}
+            successfulCount={successfulCount}
+            pendingCount={pendingCount}
+            failedCount={failedCount}
           />
 
           {/* Payments Table Card with Tabs, Search, and Filters */}

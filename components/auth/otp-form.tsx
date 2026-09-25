@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -94,18 +94,22 @@ export function OtpForm({ onVerify, onSuccess }: OtpFormProps) {
     reset();
   };
 
-  const handleVerify = async () => {
-    const result = loginOtpVerifySchema.safeParse({ otp: otpValue });
+  const lastSubmittedOtpRef = useRef<string>("");
+
+  const handleVerify = useCallback(async (codeToVerify?: string) => {
+    const code = codeToVerify || otpValue;
+    const result = loginOtpVerifySchema.safeParse({ otp: code });
     if (!result.success) {
       setOtpError(result.error.issues[0].message);
-      focusInput(otpValue.length);
+      focusInput(code.length);
       return;
     }
     setOtpError(null);
     setApiError(null);
+    lastSubmittedOtpRef.current = code;
 
     if (onVerify) {
-      onVerify(otpValue);
+      onVerify(code);
       return;
     }
 
@@ -113,7 +117,7 @@ export function OtpForm({ onVerify, onSuccess }: OtpFormProps) {
       setIsLoading(true);
       const res = await verifyOtp({
         identifier: rawPhone,
-        code: normalizeDigits(otpValue),
+        code: normalizeDigits(code),
       });
 
       if (onSuccess) {
@@ -138,7 +142,19 @@ export function OtpForm({ onVerify, onSuccess }: OtpFormProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [focusInput, loginOtpVerifySchema, onVerify, onSuccess, rawPhone, router, verifyOtp, otpValue]);
+
+  // Auto-submit as soon as all 6 digits are entered
+  useEffect(() => {
+    if (
+      step === 2 &&
+      otpValue.length === 6 &&
+      !isLoading &&
+      lastSubmittedOtpRef.current !== otpValue
+    ) {
+      handleVerify(otpValue);
+    }
+  }, [otpValue, step, isLoading, handleVerify]);
 
   const handleResend = async () => {
     if (!canResend || !rawPhone || isLoading) return;
@@ -295,7 +311,7 @@ export function OtpForm({ onVerify, onSuccess }: OtpFormProps) {
         </button>
       </div>
 
-      <Button type="button" onClick={handleVerify} disabled={isLoading}>
+      <Button type="button" onClick={() => handleVerify()} disabled={isLoading}>
         {isLoading ? (
           <span className="flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />

@@ -2,86 +2,88 @@
 
 import Link from "next/link";
 import { MoreVertical } from "lucide-react";
+import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
+import type { RecentMemberRow } from "@/lib/api/services/gyms.service";
 import { cn } from "@/lib/utils";
 
-interface MemberRecord {
-  id: string;
-  name: string;
-  email: string;
-  avatarText: string;
-  avatarGradient: string;
-  plan: string;
-  expiryDate: string;
-  status: "active" | "expiring" | "expired";
-  statusText: string;
+interface RecentMembersTableProps {
+  members?: RecentMemberRow[];
+  isLoading?: boolean;
 }
 
-const MEMBERS_DATA: MemberRecord[] = [
-  {
-    id: "m-1",
-    name: "پریا احمدی",
-    email: "paria@mail.com",
-    avatarText: "پا",
-    avatarGradient: "linear-gradient(135deg, #16E0A0, #22D3EE)",
-    plan: "طلایی",
-    expiryDate: "۱۴۰۴/۰۹/۱۲",
-    status: "active",
-    statusText: "فعال",
-  },
-  {
-    id: "m-2",
-    name: "رضا کریمی",
-    email: "reza.k@mail.com",
-    avatarText: "رک",
-    avatarGradient: "linear-gradient(135deg, #6366F1, #22D3EE)",
-    plan: "نقره‌ای",
-    expiryDate: "۱۴۰۴/۰۷/۰۳",
-    status: "expiring",
-    statusText: "رو به اتمام",
-  },
-  {
-    id: "m-3",
-    name: "مهسا نوری",
-    email: "mahsa.n@mail.com",
-    avatarText: "من",
-    avatarGradient: "linear-gradient(135deg, #F59E0B, #EF4444)",
-    plan: "طلایی",
-    expiryDate: "۱۴۰۵/۰۱/۲۰",
-    status: "active",
-    statusText: "فعال",
-  },
-  {
-    id: "m-4",
-    name: "آرش محمدی",
-    email: "arash.m@mail.com",
-    avatarText: "آم",
-    avatarGradient: "linear-gradient(135deg, #0EA5E9, #16E0A0)",
-    plan: "برنزی",
-    expiryDate: "۱۴۰۴/۰۶/۱۵",
-    status: "expired",
-    statusText: "منقضی",
-  },
-  {
-    id: "m-5",
-    name: "سارا طاهری",
-    email: "sara.t@mail.com",
-    avatarText: "سط",
-    avatarGradient: "linear-gradient(135deg, #8B5CF6, #EC4899)",
-    plan: "طلایی",
-    expiryDate: "۱۴۰۴/۱۱/۰۸",
-    status: "active",
-    statusText: "فعال",
-  },
+const GRADIENTS = [
+  "linear-gradient(135deg, #16E0A0, #22D3EE)",
+  "linear-gradient(135deg, #6366F1, #22D3EE)",
+  "linear-gradient(135deg, #F59E0B, #EF4444)",
+  "linear-gradient(135deg, #0EA5E9, #16E0A0)",
+  "linear-gradient(135deg, #8B5CF6, #EC4899)",
 ];
 
-export function RecentMembersTable() {
+function getInitials(name?: string): string {
+  if (!name) return "ع";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] || "") + (parts[1][0] || "");
+  }
+  return name.slice(0, 2);
+}
+
+function formatPersianDate(dateStr?: string | null): string {
+  if (!dateStr) return "نامشخص";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("fa-IR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function getStatusDetails(status?: string) {
+  const s = (status || "").toLowerCase();
+  if (s === "active" || s === "فعال") {
+    return { status: "active", label: "فعال" };
+  }
+  if (s === "expiring" || s === "رو به اتمام") {
+    return { status: "expiring", label: "رو به اتمام" };
+  }
+  return { status: "expired", label: "منقضی" };
+}
+
+export function RecentMembersTable({ members: propMembers, isLoading: propLoading }: RecentMembersTableProps) {
+  const { data: dashboard, isLoading: queryLoading } = useOwnerDashboard();
+  const members = propMembers ?? dashboard?.recent_members;
+  const isLoading = propLoading ?? queryLoading;
+
+  const items = members && members.length > 0 ? members : [];
+
+  if (isLoading && !members) {
+    return (
+      <div className="rounded-[16px] border border-border bg-surface p-[22px] shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+        <div className="flex items-center justify-between border-b border-border pb-[16px]">
+          <div className="h-[20px] w-[120px] animate-pulse rounded bg-bg" />
+          <div className="h-[32px] w-[80px] animate-pulse rounded-[10px] bg-bg" />
+        </div>
+        <div className="flex flex-col gap-[12px] pt-[16px]">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex h-[45px] animate-pulse items-center rounded bg-bg/40" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-[16px] border border-border bg-surface shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
       <div className="flex items-center justify-between border-b border-border px-[22px] py-[20px]">
         <div>
           <h3 className="text-[16px] font-extrabold text-ink">اعضای اخیر</h3>
           <div className="mt-[3px] text-[12.5px] text-ink-faint">
-            آخرین عضویت‌ها و وضعیت
+            آخرین عضویت‌ها و وضعیت اعضا
           </div>
         </div>
         <Link
@@ -112,76 +114,92 @@ export function RecentMembersTable() {
             </tr>
           </thead>
           <tbody>
-            {MEMBERS_DATA.map((member, index) => (
-              <tr
-                key={member.id}
-                className={cn(
-                  "transition-colors duration-150 hover:bg-bg",
-                  index < MEMBERS_DATA.length - 1 && "border-b border-border",
-                )}
-              >
-                <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
-                  <div className="flex items-center gap-[11px]">
-                    <span
-                      className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-bold text-white"
-                      style={{ background: member.avatarGradient }}
-                    >
-                      {member.avatarText}
-                    </span>
-                    <div>
-                      <div className="text-[13.5px] font-bold text-ink">
-                        {member.name}
-                      </div>
-                      <div className="text-[12px] text-ink-faint">
-                        {member.email}
-                      </div>
-                    </div>
-                  </div>
-                </td>
-
-                <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
-                  {member.plan}
-                </td>
-
-                <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
-                  {member.expiryDate}
-                </td>
-
-                <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-[6px] rounded-full px-[11px] py-[5px] text-[12px] font-bold",
-                      member.status === "active" && "bg-tint text-primary-dark",
-                      member.status === "expiring" && "bg-[#FFFBEB] text-[#B45309]",
-                      member.status === "expired" && "bg-[#FFF1F2] text-[#9F1239]",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "h-[6px] w-[6px] rounded-full",
-                        member.status === "active" && "bg-primary",
-                        member.status === "expiring" && "bg-[#F59E0B]",
-                        member.status === "expired" && "bg-[#F43F5E]",
-                      )}
-                    />
-                    {member.statusText}
-                  </span>
-                </td>
-
-                <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
-                  <button
-                    type="button"
-                    className="inline-flex h-[32px] w-[32px] items-center justify-center rounded-[8px] text-ink-faint transition-colors duration-150 hover:bg-tint hover:text-primary-dark"
-                    aria-label="عملیات بیشتر"
-                  >
-                    <MoreVertical className="h-[18px] w-[18px] stroke-[2]" />
-                  </button>
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-[13.5px] text-ink-faint">
+                  عضوی یافت نشد.
                 </td>
               </tr>
-            ))}
+            ) : (
+              items.map((member, index) => {
+                const initials = getInitials(member.full_name);
+                const gradient = GRADIENTS[index % GRADIENTS.length];
+                const statusInfo = getStatusDetails(member.status);
+                const expiryFormatted = formatPersianDate(member.expiry_date);
+
+                return (
+                  <tr
+                    key={member.id || index}
+                    className={cn(
+                      "transition-colors duration-150 hover:bg-bg",
+                      index < items.length - 1 && "border-b border-border",
+                    )}
+                  >
+                    <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
+                      <div className="flex items-center gap-[11px]">
+                        <span
+                          className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-bold text-white"
+                          style={{ background: gradient }}
+                        >
+                          {initials}
+                        </span>
+                        <div>
+                          <div className="text-[13.5px] font-bold text-ink">
+                            {member.full_name}
+                          </div>
+                          <div className="text-[12px] text-ink-faint" dir="ltr">
+                            {member.email}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
+                      {member.plan_name || "—"}
+                    </td>
+
+                    <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
+                      {expiryFormatted}
+                    </td>
+
+                    <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-[6px] rounded-full px-[11px] py-[5px] text-[12px] font-bold",
+                          statusInfo.status === "active" && "bg-tint text-primary-dark",
+                          statusInfo.status === "expiring" && "bg-[#FFFBEB] text-[#B45309]",
+                          statusInfo.status === "expired" && "bg-[#FFF1F2] text-[#9F1239]",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "h-[6px] w-[6px] rounded-full",
+                            statusInfo.status === "active" && "bg-primary",
+                            statusInfo.status === "expiring" && "bg-[#F59E0B]",
+                            statusInfo.status === "expired" && "bg-[#F43F5E]",
+                          )}
+                        />
+                        {statusInfo.label}
+                      </span>
+                    </td>
+
+                    <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
+                      <button
+                        type="button"
+                        className="inline-flex h-[32px] w-[32px] items-center justify-center rounded-[8px] text-ink-faint transition-colors duration-150 hover:bg-tint hover:text-primary-dark"
+                        aria-label="عملیات بیشتر"
+                      >
+                        <MoreVertical className="h-[18px] w-[18px] stroke-[2]" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
     </div>
   );
 }
+

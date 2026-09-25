@@ -1,6 +1,36 @@
-import React from "react";
+"use client";
 
-export function MembersKpi() {
+import React from "react";
+import { useMembers } from "@/lib/hooks/queries/use-members";
+import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
+import { toPersianDigits } from "@/lib/persian-digits";
+
+interface MembersKpiProps {
+  totalCount?: number;
+  activeCount?: number;
+  expiringCount?: number;
+  newCount?: number;
+}
+
+export function MembersKpi({
+  totalCount,
+  activeCount,
+  expiringCount,
+  newCount,
+}: MembersKpiProps) {
+  const { data: membersResponse } = useMembers();
+  const { data: dashboard } = useOwnerDashboard();
+
+  const members: any[] = Array.isArray(membersResponse)
+    ? membersResponse
+    : Array.isArray(membersResponse?.results)
+      ? membersResponse.results
+      : [];
+  const total = totalCount ?? (membersResponse?.count ?? members.length);
+  const active = activeCount ?? members.filter((m) => m.status === "active" || m.status === "فعال" || m.membership_status === "active" || m.is_active === true).length;
+  const expiring = expiringCount ?? members.filter((m) => m.status === "expiring" || m.status === "رو به اتمام" || m.membership_status === "expiring").length;
+  const newThisMonth = newCount ?? members.length;
+
   return (
     <div className="mb-[18px] grid grid-cols-1 gap-[18px] min-[640px]:grid-cols-2 min-[1101px]:grid-cols-4">
       {/* KPI 1: کل اعضا */}
@@ -21,23 +51,9 @@ export function MembersKpi() {
               <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           </span>
-          <span className="inline-flex items-center gap-[4px] rounded-[100px] bg-tint px-[9px] py-[4px] text-[12.5px] font-bold text-primary-dark">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-[13px] w-[13px]"
-            >
-              <path d="m6 15 6-6 6 6" />
-            </svg>
-            ٪۸
-          </span>
         </div>
         <div className="text-[28px] font-extrabold leading-none text-ink">
-          ۱٬۲۴۸
+          {toPersianDigits(total)}
         </div>
         <div className="text-[13.5px] font-medium text-ink-soft">
           کل اعضا
@@ -63,7 +79,7 @@ export function MembersKpi() {
           </span>
         </div>
         <div className="text-[28px] font-extrabold leading-none text-ink">
-          ۱٬۰۳۱
+          {toPersianDigits(active)}
         </div>
         <div className="text-[13.5px] font-medium text-ink-soft">
           عضو فعال
@@ -89,7 +105,7 @@ export function MembersKpi() {
           </span>
         </div>
         <div className="text-[28px] font-extrabold leading-none text-ink">
-          ۸۷
+          {toPersianDigits(expiring)}
         </div>
         <div className="text-[13.5px] font-medium text-ink-soft">
           رو به اتمام
@@ -112,12 +128,9 @@ export function MembersKpi() {
               <path d="M12 5v14M5 12h14" />
             </svg>
           </span>
-          <span className="inline-flex items-center gap-[4px] rounded-[100px] bg-tint px-[9px] py-[4px] text-[12.5px] font-bold text-primary-dark">
-            این ماه
-          </span>
         </div>
         <div className="text-[28px] font-extrabold leading-none text-ink">
-          ۶۴
+          {toPersianDigits(newThisMonth)}
         </div>
         <div className="text-[13.5px] font-medium text-ink-soft">
           عضو جدید

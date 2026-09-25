@@ -1,6 +1,36 @@
-import React from "react";
+"use client";
 
-export function CoachesKpi() {
+import React from "react";
+import { useCoaches } from "@/lib/hooks/queries/use-coaches";
+import { toPersianDigits } from "@/lib/persian-digits";
+
+interface CoachesKpiProps {
+  totalCount?: number;
+  activeCount?: number;
+  avgRating?: string;
+  staffCount?: number;
+}
+
+export function CoachesKpi({
+  totalCount,
+  activeCount,
+  avgRating,
+  staffCount,
+}: CoachesKpiProps) {
+  const { data: coachesData } = useCoaches();
+
+  const list = Array.isArray(coachesData) ? coachesData : coachesData?.coaches || [];
+  const total = totalCount ?? list.length;
+  const active = activeCount ?? list.filter((c) => c.is_active).length;
+  const calculatedAvgRating =
+    avgRating ??
+    (list.length > 0
+      ? (
+          list.reduce((acc, c) => acc + (parseFloat(String(c.rating || 5)) || 5), 0) / list.length
+        ).toFixed(1)
+      : "۰");
+  const staff = staffCount ?? 0;
+
   return (
     <div className="mb-[18px] grid grid-cols-1 gap-[18px] min-[640px]:grid-cols-2 min-[1101px]:grid-cols-4">
       {/* KPI 1: کل مربیان */}
@@ -22,7 +52,7 @@ export function CoachesKpi() {
           </span>
         </div>
         <div className="text-[28px] font-extrabold leading-none text-ink">
-          ۱۲
+          {toPersianDigits(total)}
         </div>
         <div className="text-[13.5px] font-medium text-ink-soft">
           کل مربیان
@@ -48,7 +78,7 @@ export function CoachesKpi() {
           </span>
         </div>
         <div className="text-[28px] font-extrabold leading-none text-ink">
-          ۱۰
+          {toPersianDigits(active)}
         </div>
         <div className="text-[13.5px] font-medium text-ink-soft">
           فعال
@@ -73,7 +103,7 @@ export function CoachesKpi() {
           </span>
         </div>
         <div className="text-[28px] font-extrabold leading-none text-ink">
-          ۴٫۷
+          {toPersianDigits(calculatedAvgRating)}
         </div>
         <div className="text-[13.5px] font-medium text-ink-soft">
           میانگین امتیاز
@@ -99,7 +129,7 @@ export function CoachesKpi() {
           </span>
         </div>
         <div className="text-[28px] font-extrabold leading-none text-ink">
-          ۴
+          {toPersianDigits(staff)}
         </div>
         <div className="text-[13.5px] font-medium text-ink-soft">
           کارکنان اداری

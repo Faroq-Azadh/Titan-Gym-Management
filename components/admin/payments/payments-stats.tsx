@@ -10,10 +10,10 @@ interface PaymentsStatsProps {
 }
 
 export function PaymentsStats({
-  monthlyRevenue = "۲۴۸ م",
-  successfulCount = 1394,
-  pendingCount = 27,
-  failedCount = 18,
+  monthlyRevenue = "۰ تومان",
+  successfulCount = 0,
+  pendingCount = 0,
+  failedCount = 0,
 }: PaymentsStatsProps) {
   return (
     <section className="mb-[22px] grid grid-cols-1 gap-[18px] min-[640px]:grid-cols-2 min-[1100px]:grid-cols-4">
