@@ -5,28 +5,57 @@ import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { MembersKpi } from "@/components/admin/members/members-kpi";
 import { MembersTable } from "@/components/admin/members/members-table";
+import { useMembersData } from "@/lib/members-store";
 
 export default function AdminMembersPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const { members } = useMembersData();
 
   const handleExportExcel = () => {
-    // Generate CSV content for Excel export
-    const headers = ["شناسه", "نام عضو", "پلن", "مربی", "وضعیت", "تاریخ عضویت", "سررسید"];
-    const rows = [
-      ["1000", "سارا محمدی", "VIP سالانه", "آرش رستمی", "فعال", "۱۲ فروردین", "۱۵ مرداد"],
-      ["1001", "رضا کاظمی", "۳ماهه", "آرش رستمی", "رو به اتمام", "۲ فروردین", "۲ تیر"],
-      ["1002", "مینا تهرانی", "ماهانه", "نگار سالاری", "فعال", "۲۰ اردیبهشت", "۲۰ مرداد"],
-      ["1003", "نیما اکبری", "۶ماهه", "آرش رستمی", "منقضی", "۱۰ دی", "۲۵ خرداد"],
-      ["1004", "کیان مرادی", "ماهانه", "نگار سالاری", "فعال", "۵ خرداد", "۱۰ شهریور"],
-      ["1005", "هانیه رضایی", "VIP سالانه", "بهنام راد", "رو به اتمام", "۸ بهمن", "۵ تیر"],
-      ["1006", "بهراد یوسفی", "۳ماهه", "بهنام راد", "فعال", "۱۸ اردیبهشت", "۱۸ مرداد"],
-      ["1007", "الناز کریمی", "ماهانه", "نگار سالاری", "فعال", "۱ خرداد", "۱ تیر"],
+    if (!members || members.length === 0) {
+      if (typeof window !== "undefined") {
+        window.alert("عضوی در فهرست اعضا برای خروجی اکسل یافت نشد.");
+      }
+      return;
+    }
+
+    // Generate CSV content for Excel export with UTF-8 BOM
+    const headers = [
+      "شناسه",
+      "نام و نام خانوادگی",
+      "شماره تماس",
+      "ایمیل",
+      "پلن عضویت",
+      "مربی اختصاصی",
+      "وضعیت",
+      "تاریخ عضویت",
+      "تاریخ سررسید",
     ];
+
+    const rows = members.map((m) => {
+      const statusLabel =
+        m.status === "active" ? "فعال" : m.status === "expiring" ? "رو به اتمام" : "منقضی";
+
+      return [
+        String(m.code),
+        m.fullName || m.name,
+        m.phone || "—",
+        m.email && !m.email.includes("@gym.ir") ? m.email : "—",
+        m.plan || "ماهانه",
+        m.coach || "بدون مربی",
+        statusLabel,
+        m.joinDate || "—",
+        m.dueDate || "—",
+      ];
+    });
 
     const csvContent =
       "\uFEFF" +
-      [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+      [
+        headers.map((h) => `"${h}"`).join(","),
+        ...rows.map((row) => row.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(",")),
+      ].join("\r\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -36,6 +65,7 @@ export default function AdminMembersPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (

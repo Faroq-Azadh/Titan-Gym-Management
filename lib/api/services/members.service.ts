@@ -36,16 +36,16 @@ export interface PaginatedMembersResponse {
 export interface CreateMemberPayload {
   first_name: string;
   last_name: string;
-  start_date?: string;
+  start_date: string;
   phone_number?: string;
   email?: string;
-  gender?: "MALE" | "FEMALE" | "M" | "F" | "";
+  gender?: "MALE" | "FEMALE" | "";
   date_of_birth?: string | null;
   address?: string;
   assigned_coach_id?: string | null;
   membership_plan_id?: string | null;
   goal?: string;
-  level?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "PRO";
+  level?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "";
   training_days?: string[];
   coach_notes?: string;
   create_login_account?: boolean;
@@ -81,23 +81,30 @@ export const membersService = {
 
   /**
    * Create a new member in the gym (POST /members/)
+   * Conforms exactly to MemberCreate schema in Titan_Gym_OS_API.yaml
    */
   async createMember(payload: CreateMemberPayload): Promise<MemberListItem> {
     const today = new Date().toISOString().slice(0, 10);
     const body: Record<string, unknown> = {
-      first_name: payload.first_name,
-      last_name: payload.last_name || "عضو",
+      first_name: payload.first_name.trim(),
+      last_name: payload.last_name.trim(),
       start_date: payload.start_date || today,
     };
 
-    if (payload.phone_number) {
-      body.phone_number = payload.phone_number;
+    if (payload.phone_number?.trim()) {
+      body.phone_number = payload.phone_number.trim();
     }
-    if (payload.email) {
-      body.email = payload.email;
+    if (payload.email?.trim()) {
+      body.email = payload.email.trim();
     }
     if (payload.gender) {
-      body.gender = payload.gender === "M" ? "MALE" : payload.gender === "F" ? "FEMALE" : payload.gender;
+      body.gender = payload.gender;
+    }
+    if (payload.date_of_birth) {
+      body.date_of_birth = payload.date_of_birth;
+    }
+    if (payload.address?.trim()) {
+      body.address = payload.address.trim();
     }
     if (payload.assigned_coach_id) {
       body.assigned_coach_id = payload.assigned_coach_id;
@@ -105,11 +112,17 @@ export const membersService = {
     if (payload.membership_plan_id) {
       body.membership_plan_id = payload.membership_plan_id;
     }
-    if (payload.goal) {
-      body.goal = payload.goal;
+    if (payload.goal?.trim()) {
+      body.goal = payload.goal.trim();
     }
     if (payload.level) {
       body.level = payload.level;
+    }
+    if (Array.isArray(payload.training_days) && payload.training_days.length > 0) {
+      body.training_days = payload.training_days;
+    }
+    if (payload.coach_notes?.trim()) {
+      body.coach_notes = payload.coach_notes.trim();
     }
     if (payload.create_login_account !== undefined) {
       body.create_login_account = payload.create_login_account;
@@ -130,20 +143,19 @@ export const membersService = {
    */
   async deleteMember(id: string | number): Promise<void> {
     try {
+      // 1. Attempt HTTP DELETE /members/{id}/
       await apiClient.delete(ENDPOINTS.MEMBERS.DELETE(id), { requiresAuth: true });
+      return;
     } catch (err: any) {
       const status = err?.status || err?.response?.status || err?.statusCode;
-      if (status === 405 || status === 403 || status === 400 || status === 404) {
-        try {
-          await apiClient.patch(
-            ENDPOINTS.MEMBERS.UPDATE(id),
-            { is_active: false },
-            { requiresAuth: true }
-          );
-          return;
-        } catch (patchErr) {
-          console.warn("Could not deactivate member via PATCH:", patchErr);
-        }
+      // 2. If DELETE is not supported by DRF (405 Method Not Allowed), soft-delete via PATCH is_active: false
+      if (status === 405 || status === 404 || status === 403 || status === 400) {
+        await apiClient.patch(
+          ENDPOINTS.MEMBERS.UPDATE(id),
+          { is_active: false },
+          { requiresAuth: true }
+        );
+        return;
       }
       throw err;
     }

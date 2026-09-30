@@ -55,7 +55,17 @@ export const coachesService = {
    * Get all coaches and KPI stats
    */
   async getCoaches(): Promise<CoachesResponse | CoachItem[]> {
-    return apiClient.get<CoachesResponse | CoachItem[]>(ENDPOINTS.COACHES.LIST, { requiresAuth: true });
+    try {
+      return await apiClient.get<CoachesResponse | CoachItem[]>(ENDPOINTS.COACHES.LIST, { requiresAuth: true });
+    } catch (err) {
+      console.warn("Error fetching /coaches/, attempting fallback /coaches/?type=coach:", err);
+      try {
+        return await apiClient.get<CoachesResponse | CoachItem[]>("/coaches/?type=coach", { requiresAuth: true });
+      } catch (err2) {
+        console.error("Failed to fetch coaches from backend:", err2);
+        return [] as any;
+      }
+    }
   },
 
   /**

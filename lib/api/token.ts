@@ -30,15 +30,43 @@ function deleteCookie(name: string): void {
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
 }
 
+function cleanToken(token: string | null | undefined): string | null {
+  if (!token) return null;
+  let t = token.trim();
+  if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+    t = t.slice(1, -1).trim();
+  }
+  if (t.toLowerCase().startsWith("bearer ")) {
+    t = t.slice(7).trim();
+  }
+  return t.length > 0 ? t : null;
+}
+
 export const tokenStorage = {
   getAccessToken(): string | null {
     if (!isBrowser()) return null;
-    return localStorage.getItem(ACCESS_TOKEN_KEY) || getCookie(ACCESS_TOKEN_KEY);
+    const raw =
+      localStorage.getItem(ACCESS_TOKEN_KEY) ||
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("access") ||
+      localStorage.getItem("token") ||
+      getCookie(ACCESS_TOKEN_KEY) ||
+      getCookie("access_token") ||
+      getCookie("access") ||
+      getCookie("token");
+    return cleanToken(raw);
   },
 
   getRefreshToken(): string | null {
     if (!isBrowser()) return null;
-    return localStorage.getItem(REFRESH_TOKEN_KEY) || getCookie(REFRESH_TOKEN_KEY);
+    const raw =
+      localStorage.getItem(REFRESH_TOKEN_KEY) ||
+      localStorage.getItem("refresh_token") ||
+      localStorage.getItem("refresh") ||
+      getCookie(REFRESH_TOKEN_KEY) ||
+      getCookie("refresh_token") ||
+      getCookie("refresh");
+    return cleanToken(raw);
   },
 
   setTokens(tokens: { access: string; refresh?: string }): void {

@@ -1,8 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { MoreVertical } from "lucide-react";
 import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
+import { useMembersData } from "@/lib/members-store";
 import type { RecentMemberRow } from "@/lib/api/services/gyms.service";
 import { cn } from "@/lib/utils";
 
@@ -29,14 +31,19 @@ function getInitials(name?: string): string {
 }
 
 function formatPersianDate(dateStr?: string | null): string {
-  if (!dateStr) return "نامشخص";
+  if (!dateStr || dateStr === "—") return "—";
   try {
-    const d = new Date(dateStr);
+    const parts = dateStr.split("-").map(Number);
+    let d: Date;
+    if (parts.length === 3) {
+      d = new Date(parts[0], parts[1] - 1, parts[2]);
+    } else {
+      d = new Date(dateStr);
+    }
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString("fa-IR", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
+      month: "short",
+      day: "numeric",
     });
   } catch {
     return dateStr;
@@ -45,20 +52,36 @@ function formatPersianDate(dateStr?: string | null): string {
 
 function getStatusDetails(status?: string) {
   const s = (status || "").toLowerCase();
-  if (s === "active" || s === "فعال") {
-    return { status: "active", label: "فعال" };
-  }
   if (s === "expiring" || s === "رو به اتمام") {
     return { status: "expiring", label: "رو به اتمام" };
   }
-  return { status: "expired", label: "منقضی" };
+  if (s === "expired" || s === "منقضی") {
+    return { status: "expired", label: "منقضی" };
+  }
+  return { status: "active", label: "فعال" };
 }
 
 export function RecentMembersTable({ members: propMembers, isLoading: propLoading }: RecentMembersTableProps) {
   const { data: dashboard, isLoading: queryLoading } = useOwnerDashboard();
-  const members = propMembers ?? dashboard?.recent_members;
-  const isLoading = propLoading ?? queryLoading;
+  const { members: liveMembers, isLoading: membersLoading } = useMembersData();
 
+  const members = useMemo(() => {
+    if (propMembers) return propMembers;
+    if (liveMembers && liveMembers.length > 0) {
+      return liveMembers.slice(0, 5).map((m) => ({
+        id: m.id,
+        full_name: m.fullName,
+        email: m.email,
+        phone: m.phone,
+        plan_name: m.plan,
+        expiry_date: m.dueDate,
+        status: m.status,
+      }));
+    }
+    return dashboard?.recent_members ?? [];
+  }, [propMembers, liveMembers, dashboard?.recent_members]);
+
+  const isLoading = propLoading ?? (queryLoading && membersLoading);
   const items = members && members.length > 0 ? members : [];
 
   if (isLoading && !members) {
@@ -148,7 +171,9 @@ export function RecentMembersTable({ members: propMembers, isLoading: propLoadin
                             {member.full_name}
                           </div>
                           <div className="text-[12px] text-ink-faint" dir="ltr">
-                            {member.email}
+                            {member.email && member.email.trim() && !member.email.includes("@gym.ir")
+                              ? member.email
+                              : (member as any).phone || "—"}
                           </div>
                         </div>
                       </div>

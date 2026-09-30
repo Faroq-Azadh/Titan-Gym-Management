@@ -89,6 +89,15 @@ export function parseDjangoError(errorPayload: unknown, status: number): ApiErro
     detail = payload.message;
   }
 
+  // Handle SimpleJWT token expiration or invalidity
+  if (
+    status === 401 ||
+    payload.code === "token_not_valid" ||
+    (typeof detail === "string" && detail.toLowerCase().includes("token not valid"))
+  ) {
+    detail = "نشست کاربری شما در سرور منقضی شده است. لطفاً یک‌بار از حساب کاربری خارج شده و مجدداً وارد شوید.";
+  }
+
   // Parse field-level errors (DRF standard format: { field: ["error1", "error2"] })
   for (const [key, value] of Object.entries(payload)) {
     if (key === "detail" || key === "status_code" || key === "code") continue;

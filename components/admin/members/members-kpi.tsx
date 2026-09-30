@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { useMembers } from "@/lib/hooks/queries/use-members";
-import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
+import { useMembersData } from "@/lib/members-store";
 import { toPersianDigits } from "@/lib/persian-digits";
 
 interface MembersKpiProps {
@@ -18,18 +17,12 @@ export function MembersKpi({
   expiringCount,
   newCount,
 }: MembersKpiProps) {
-  const { data: membersResponse } = useMembers();
-  const { data: dashboard } = useOwnerDashboard();
+  const { counts } = useMembersData();
 
-  const members: any[] = Array.isArray(membersResponse)
-    ? membersResponse
-    : Array.isArray(membersResponse?.results)
-      ? membersResponse.results
-      : [];
-  const total = totalCount ?? (membersResponse?.count ?? members.length);
-  const active = activeCount ?? members.filter((m) => m.status === "active" || m.status === "فعال" || m.membership_status === "active" || m.is_active === true).length;
-  const expiring = expiringCount ?? members.filter((m) => m.status === "expiring" || m.status === "رو به اتمام" || m.membership_status === "expiring").length;
-  const newThisMonth = newCount ?? members.length;
+  const total = totalCount ?? counts.total;
+  const active = activeCount ?? counts.active;
+  const expiring = expiringCount ?? counts.expiring;
+  const newThisMonth = newCount ?? counts.newThisMonth;
 
   return (
     <div className="mb-[18px] grid grid-cols-1 gap-[18px] min-[640px]:grid-cols-2 min-[1101px]:grid-cols-4">
