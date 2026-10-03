@@ -88,6 +88,7 @@ export function ClassesListView({
             <option value="سه‌شنبه">سه‌شنبه</option>
             <option value="چهارشنبه">چهارشنبه</option>
             <option value="پنجشنبه">پنجشنبه</option>
+            <option value="جمعه">جمعه</option>
           </select>
         </div>
       </div>

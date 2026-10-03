@@ -6,51 +6,71 @@ import {
   useApproveBooking,
   useRejectBooking,
   useCreateBooking,
+  useDeleteBooking,
 } from "@/lib/hooks/queries/use-classes";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { BookingsKpi } from "@/components/admin/bookings/bookings-kpi";
 import {
   BookingsTable,
-  INITIAL_BOOKINGS,
   BookingItem,
+  AddBookingFormValues,
 } from "@/components/admin/bookings/bookings-table";
+import { toPersianDigits } from "@/lib/persian-digits";
 
 export default function AdminBookingsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  const { data: backendBookings } = useBookings();
+  const { data: bookingsData } = useBookings();
   const approveBookingMutation = useApproveBooking();
   const rejectBookingMutation = useRejectBooking();
   const createBookingMutation = useCreateBooking();
+  const deleteBookingMutation = useDeleteBooking();
 
   const bookings: BookingItem[] = useMemo(() => {
-    const list: any[] = Array.isArray(backendBookings)
-      ? backendBookings
-      : Array.isArray((backendBookings as any)?.results)
-        ? (backendBookings as any).results
-        : Array.isArray((backendBookings as any)?.bookings)
-          ? (backendBookings as any).bookings
+    const list: any[] = Array.isArray(bookingsData?.bookings)
+      ? bookingsData.bookings
+      : Array.isArray((bookingsData as any)?.results)
+        ? (bookingsData as any).results
+        : Array.isArray(bookingsData)
+          ? (bookingsData as any)
           : [];
 
     return list.map((b) => {
       const statusMap: BookingItem["status"] =
-        b.status === "CONFIRMED" ? "confirmed" : b.status === "CANCELLED" || b.status === "REJECTED" ? "cancelled" : "pending";
+        b.status === "CONFIRMED"
+          ? "confirmed"
+          : b.status === "CANCELLED" || b.status === "REJECTED"
+            ? "cancelled"
+            : "pending";
+
+      const timeDay = [b.day_name, b.start_time ? b.start_time.slice(0, 5) : ""].filter(Boolean).join(" ");
+      const datePart = b.date ? ` (${b.date})` : "";
+
       return {
         id: String(b.id),
         name: b.member_name || "ورزشکار",
         className: b.class_title || "کلاس ورزشی",
-        coach: b.coach_name || "مربی",
-        time: `${b.date || ""} ${b.start_time ? b.start_time.slice(0, 5) : ""}`.trim(),
+        coach: b.coach_name || "-",
+        time: `${timeDay}${datePart}`.trim() || "-",
         status: statusMap,
+        member_id: b.member_id,
+        class_id: b.class_id,
+        date: b.date,
       };
     });
-  }, [backendBookings]);
+  }, [bookingsData]);
 
-  const confirmedCount = bookings.filter((b) => b.status === "confirmed").length;
-  const pendingCount = bookings.filter((b) => b.status === "pending").length;
-  const cancelledCount = bookings.filter((b) => b.status === "cancelled").length;
+  const summary = bookingsData?.summary;
+  const confirmedCount = summary?.confirmed_count ?? bookings.filter((b) => b.status === "confirmed").length;
+  const pendingCount = summary?.pending_count ?? bookings.filter((b) => b.status === "pending").length;
+  const cancelledCount = summary?.canceled_count ?? bookings.filter((b) => b.status === "cancelled").length;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayCountVal = summary?.today_count !== undefined
+    ? summary.today_count
+    : bookings.filter((b) => b.date === todayStr).length;
 
   const handleUpdateStatus = async (id: string, newStatus: BookingItem["status"]) => {
     try {
@@ -59,28 +79,36 @@ export default function AdminBookingsPage() {
       } else if (newStatus === "cancelled") {
         await rejectBookingMutation.mutateAsync(id);
       }
-    } catch {
-      // Handled
+    } catch (err) {
+      console.error("Error updating status:", err);
     }
   };
 
-  const handleAddBooking = async (newBookingData: Omit<BookingItem, "id">) => {
+  const handleAddBooking = async (newBookingData: AddBookingFormValues) => {
+    await createBookingMutation.mutateAsync({
+      class_id: newBookingData.class_id,
+      date: newBookingData.date,
+      member_id: newBookingData.member_id,
+      member_name: newBookingData.member_name,
+      class_title: newBookingData.class_title,
+      coach_name: newBookingData.coach_name,
+      day_name: newBookingData.day_name,
+      start_time: newBookingData.start_time,
+      status: newBookingData.status === "confirmed" ? "CONFIRMED" : "PENDING",
+    });
+    setIsAddModalOpen(false);
+  };
+
+  const handleDeleteBooking = async (id: string) => {
     try {
-      await createBookingMutation.mutateAsync({
-        class_id: "1",
-        date: new Date().toISOString().slice(0, 10),
-      });
-    } catch {
-      // Handled
+      await deleteBookingMutation.mutateAsync(id);
+    } catch (err) {
+      console.error("Error deleting booking:", err);
     }
-  };
-
-  const handleDeleteBooking = (id: string) => {
-    // Delete or cancel
   };
 
   const handleExport = () => {
-    const headers = ["نام عضو", "کلاس", "مربی", "زمان", "وضعیت"];
+    const headers = ["نام عضو", "کلاس", "مربی", "زمان و تاریخ", "وضعیت"];
     const statusLabels: Record<BookingItem["status"], string> = {
       confirmed: "تأییدشده",
       pending: "در انتظار تأیید",
@@ -127,13 +155,18 @@ export default function AdminBookingsPage() {
         {/* Page Content */}
         <main className="flex-1 p-[18px] min-[640px]:p-[28px]">
           {/* Page Head */}
-          <div className="mb-[24px] flex flex-wrap items-end justify-between gap-[16px]">
+          <div className="mb-[20px] flex flex-wrap items-end justify-between gap-[16px]">
             <div>
-              <h1 className="text-[22px] font-extrabold tracking-[-0.01em] text-ink min-[640px]:text-[26px]">
-                رزروها
-              </h1>
+              <div className="flex items-center gap-[10px]">
+                <h1 className="text-[22px] font-extrabold tracking-[-0.01em] text-ink min-[640px]:text-[26px]">
+                  رزروها
+                </h1>
+                <span className="rounded-[6px] border border-border bg-bg px-[8px] py-[2px] text-[11px] font-bold text-ink-faint">
+                  غیرفعال در پنل
+                </span>
+              </div>
               <div className="mt-[5px] text-[14px] text-ink-faint">
-                مدیریت و تأیید درخواست‌های رزرو کلاس
+                مدیریت و تأیید درخواست‌های رزرو کلاس (آماده‌سازی شده)
               </div>
             </div>
 
@@ -160,8 +193,41 @@ export default function AdminBookingsPage() {
             </div>
           </div>
 
+          {/* Inactive Feature Notice Banner */}
+          <div className="mb-[20px] flex items-start gap-[12px] rounded-[14px] border border-amber-500/25 bg-amber-500/10 p-[16px]">
+            <span className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-[8px] bg-amber-500/20 text-amber-700 dark:text-amber-300">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-[18px] w-[18px]"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </span>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-[8px]">
+                <h3 className="text-[14px] font-extrabold text-amber-900 dark:text-amber-200">
+                  این بخش موقتاً به عنوان قابلیت غیرفعال (Pending Feature) در پنل قرار دارد
+                </h3>
+                <span className="rounded-full bg-amber-500/20 px-[8px] py-[2px] text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                  در انتظار مجوز بک‌اند
+                </span>
+              </div>
+              <p className="mt-[4px] text-[12.5px] leading-[20px] text-ink-soft">
+                تمامی ساختارهای پیاده‌سازی‌شده (سرویس‌های API، اتصال به فهرست رزروهای جنگو، فرم ثبت با انتخاب کلاس و عضو، تأیید/رد رزروها و خروجی اکسل) در پروژه به صورت کامل و آماده نگه‌داری شده است.
+              </p>
+            </div>
+          </div>
+
           {/* KPI Cards Grid */}
           <BookingsKpi
+            todayCount={toPersianDigits(todayCountVal)}
             confirmedCount={confirmedCount}
             pendingCount={pendingCount}
             cancelledCount={cancelledCount}

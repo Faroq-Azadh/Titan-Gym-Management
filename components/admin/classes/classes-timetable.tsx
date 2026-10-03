@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { toPersianDigits } from "@/lib/persian-digits";
+import { toPersianDigits, normalizeDigits } from "@/lib/persian-digits";
 import { ClassSession, DayOfWeek, TimeSlot } from "./types";
 
 interface ClassesTimetableProps {
@@ -18,9 +18,8 @@ const DAYS: DayOfWeek[] = [
   "سه‌شنبه",
   "چهارشنبه",
   "پنجشنبه",
+  "جمعه",
 ];
-
-const TIME_SLOTS: TimeSlot[] = ["۰۸:۰۰", "۱۰:۰۰", "۱۷:۰۰", "۱۹:۳۰"];
 
 export function ClassesTimetable({
   classes,
@@ -29,6 +28,19 @@ export function ClassesTimetable({
 }: ClassesTimetableProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
+
+  const timeSlots = useMemo(() => {
+    const defaultSlots = ["۰۸:۰۰", "۱۰:۰۰", "۱۱:۰۰", "۱۷:۰۰", "۱۹:۳۰"];
+    const set = new Set<string>(defaultSlots);
+    classes.forEach((c) => {
+      if (c.time) set.add(c.time);
+    });
+    return Array.from(set).sort((a, b) => {
+      const aEng = normalizeDigits(a);
+      const bEng = normalizeDigits(b);
+      return aEng.localeCompare(bEng);
+    });
+  }, [classes]);
 
   const categories = [
     { id: "all", label: "همه رشته‌ها" },
@@ -137,7 +149,7 @@ export function ClassesTimetable({
       {/* Card Body - Timetable */}
       <div className="p-[16px] min-[640px]:p-[22px]">
         <div className="overflow-x-auto">
-          <div className="grid min-w-[720px] grid-cols-[64px_repeat(6,1fr)] gap-[8px]">
+          <div className="grid min-w-[780px] grid-cols-[64px_repeat(7,1fr)] gap-[8px]">
             {/* Header Row */}
             <div className="flex items-center justify-center text-[11.5px] font-bold text-ink-faint">
               زمان
@@ -152,7 +164,7 @@ export function ClassesTimetable({
             ))}
 
             {/* Time Slot Rows */}
-            {TIME_SLOTS.map((time) => (
+            {timeSlots.map((time) => (
               <div key={time} className="contents">
                 {/* Time column */}
                 <div className="flex items-center justify-center text-[11.5px] font-bold text-ink-faint">

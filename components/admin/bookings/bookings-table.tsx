@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { toPersianDigits } from "@/lib/persian-digits";
 import { cn } from "@/lib/utils";
+import { useClasses } from "@/lib/hooks/queries/use-classes";
+import { useMembers } from "@/lib/hooks/queries/use-members";
 
 export interface BookingItem {
   id: string;
@@ -11,17 +13,22 @@ export interface BookingItem {
   coach: string;
   time: string;
   status: "confirmed" | "pending" | "cancelled";
+  member_id?: string;
+  class_id?: string;
+  date?: string;
 }
 
-const INITIAL_BOOKINGS: BookingItem[] = [
-  { id: "1", name: "سارا محمدی", className: "یوگا", coach: "سپیده نوری", time: "شنبه ۱۰:۰۰", status: "confirmed" },
-  { id: "2", name: "رضا کاظمی", className: "بدنسازی", coach: "آرش رستمی", time: "شنبه ۰۸:۰۰", status: "pending" },
-  { id: "3", name: "مینا تهرانی", className: "فیتنس", coach: "نگار سالاری", time: "یکشنبه ۱۰:۰۰", status: "pending" },
-  { id: "4", name: "امیر صادقی", className: "کراس‌فیت", coach: "بهنام راد", time: "شنبه ۱۷:۰۰", status: "confirmed" },
-  { id: "5", name: "کیان مرادی", className: "TRX", coach: "کاوه احمدی", time: "چهارشنبه ۱۷:۰۰", status: "cancelled" },
-  { id: "6", name: "هانیه رضایی", className: "یوگا", coach: "سپیده نوری", time: "سه‌شنبه ۱۰:۰۰", status: "confirmed" },
-  { id: "7", name: "بهراد یوسفی", className: "بدنسازی", coach: "آرش رستمی", time: "دوشنبه ۰۸:۰۰", status: "pending" },
-];
+export interface AddBookingFormValues {
+  member_id?: string;
+  member_name: string;
+  class_id: string;
+  class_title: string;
+  coach_name: string;
+  day_name: string;
+  start_time: string;
+  date: string;
+  status: "confirmed" | "pending";
+}
 
 const AVATAR_COLORS = [
   "#16E0A0",
@@ -61,7 +68,7 @@ const STATUS_CONFIG: Record<
 interface BookingsTableProps {
   bookings: BookingItem[];
   onUpdateStatus: (id: string, newStatus: BookingItem["status"]) => void;
-  onAddBooking: (booking: Omit<BookingItem, "id">) => void;
+  onAddBooking: (booking: AddBookingFormValues) => void;
   onDeleteBooking: (id: string) => void;
   isAddModalOpen?: boolean;
   onCloseAddModal?: () => void;
@@ -80,19 +87,38 @@ export function BookingsTable({
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "cancelled">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [formData, setFormData] = useState<{
-    name: string;
-    className: string;
-    coach: string;
-    time: string;
-    status: BookingItem["status"];
-  }>({
-    name: "",
-    className: "بدنسازی",
-    coach: "آرش رستمی",
-    time: "شنبه ۱۰:۰۰",
-    status: "pending",
-  });
+  // Queries for real backend data
+  const { data: gymClasses } = useClasses();
+  const { data: membersData } = useMembers();
+
+  const membersList = useMemo(() => {
+    return membersData?.results || [];
+  }, [membersData]);
+
+  // Modal Form State
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [customMemberName, setCustomMemberName] = useState("");
+  const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [bookingStatus, setBookingStatus] = useState<"confirmed" | "pending">("confirmed");
+
+  // When classes load, set initial selection if empty
+  useEffect(() => {
+    if (gymClasses && gymClasses.length > 0 && !selectedClassId) {
+      setSelectedClassId(String(gymClasses[0].id));
+    }
+  }, [gymClasses, selectedClassId]);
+
+  // When members load, set initial selection if empty
+  useEffect(() => {
+    if (membersList.length > 0 && !selectedMemberId && !customMemberName) {
+      setSelectedMemberId(String(membersList[0].id));
+    }
+  }, [membersList, selectedMemberId, customMemberName]);
+
+  const selectedClass = useMemo(() => {
+    return gymClasses?.find((c) => String(c.id) === String(selectedClassId));
+  }, [gymClasses, selectedClassId]);
 
   const getInitials = (name: string) => {
     return name
@@ -106,35 +132,74 @@ export function BookingsTable({
   const filteredBookings = useMemo(() => {
     return bookings.filter((item) => {
       const matchesFilter = filter === "all" || item.status === filter;
-      const matchesSearch = item.name.includes(searchQuery.trim());
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        item.name.toLowerCase().includes(q) ||
+        item.className.toLowerCase().includes(q) ||
+        item.coach.toLowerCase().includes(q);
       return matchesFilter && matchesSearch;
     });
   }, [bookings, filter, searchQuery]);
 
-  const handleSaveNew = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleSaveNew = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim()) return;
-    onAddBooking({
-      name: formData.name.trim(),
-      className: formData.className,
-      coach: formData.coach,
-      time: formData.time,
-      status: formData.status,
-    });
-    setFormData({
-      name: "",
-      className: "بدنسازی",
-      coach: "آرش رستمی",
-      time: "شنبه ۱۰:۰۰",
-      status: "pending",
-    });
-    if (onCloseAddModal) onCloseAddModal();
+    setSubmitError(null);
+
+    let finalMemberName = customMemberName.trim();
+    let finalMemberId: string | undefined = undefined;
+
+    if (selectedMemberId && selectedMemberId !== "custom") {
+      const m = membersList.find((mem) => String(mem.id) === String(selectedMemberId));
+      if (m) {
+        finalMemberName = m.full_name || `${(m as any).first_name || ""} ${(m as any).last_name || ""}`.trim() || "ورزشکار";
+        finalMemberId = String(m.id);
+      }
+    }
+
+    if (!finalMemberName) {
+      setSubmitError("لطفاً نام یا عضو رزروکننده را مشخص کنید.");
+      return;
+    }
+
+    const classItem = selectedClass;
+    const finalClassId = classItem ? String(classItem.id) : selectedClassId || "class_default";
+    const finalClassTitle = classItem ? classItem.title : "کلاس ورزشی";
+    const finalCoachName = classItem?.coach_name || "مربی باشگاه";
+    const finalDayName = classItem?.day_name || "شنبه";
+    const finalStartTime = classItem?.start_time ? classItem.start_time.slice(0, 5) : "18:00";
+
+    try {
+      setIsSubmitting(true);
+      await onAddBooking({
+        member_id: finalMemberId,
+        member_name: finalMemberName,
+        class_id: finalClassId,
+        class_title: finalClassTitle,
+        coach_name: finalCoachName,
+        day_name: finalDayName,
+        start_time: finalStartTime,
+        date: bookingDate,
+        status: bookingStatus,
+      });
+
+      if (onCloseAddModal) onCloseAddModal();
+    } catch (err: any) {
+      console.error("Booking error:", err);
+      const detailMsg = err?.response?.data?.detail || err?.data?.detail || err?.message || "خطا در ثبت رزرو در سرور جنگو";
+      setSubmitError(typeof detailMsg === "string" ? detailMsg : JSON.stringify(detailMsg));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <>
       {/* Filter Bar */}
-      <div className="mb-[18px] flex flex-wrap items-center gap-[12px]">
+      <div className="mb-[18px] flex flex-wrap items-center justify-between gap-[12px]">
         {/* Status Tabs */}
         <div className="flex flex-wrap gap-[4px] rounded-[10px] bg-bg p-[4px]" id="statusTabs">
           <button
@@ -187,28 +252,51 @@ export function BookingsTable({
           </button>
         </div>
 
-        {/* Search Field */}
-        <div className="flex min-w-[240px] flex-1 max-w-[360px] items-center gap-[10px] rounded-[12px] border border-border bg-surface px-[14px] py-[9px] transition-colors focus-within:border-primary">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-[17px] w-[17px] shrink-0 text-ink-faint"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="text"
-            id="bSearch"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="جستجوی نام عضو…"
-            className="w-full border-none bg-transparent text-[14px] text-ink placeholder:text-ink-faint focus:outline-none"
-          />
+        {/* Search Field & Add Button */}
+        <div className="flex flex-wrap items-center gap-[10px]">
+          <div className="flex min-w-[240px] items-center gap-[10px] rounded-[12px] border border-border bg-surface px-[14px] py-[9px] transition-colors focus-within:border-primary">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-[17px] w-[17px] shrink-0 text-ink-faint"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              id="bSearch"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="جستجوی نام، کلاس یا مربی…"
+              className="w-full border-none bg-transparent text-[14px] text-ink placeholder:text-ink-faint focus:outline-none"
+            />
+          </div>
+
+          {onOpenAddModal && (
+            <button
+              type="button"
+              onClick={onOpenAddModal}
+              className="inline-flex cursor-pointer items-center justify-center gap-[8px] rounded-[10px] bg-primary px-[16px] py-[9px] text-[13px] font-bold text-ink shadow-sm transition-all hover:bg-primary-dark hover:text-white"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-[16px] w-[16px]"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>ثبت رزرو جدید</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -219,7 +307,7 @@ export function BookingsTable({
           <div>
             <h3 className="text-[16px] font-extrabold text-ink">فهرست رزروها</h3>
             <div className="mt-[3px] text-[12.5px] text-ink-faint" id="rowInfo">
-              نمایش {toPersianDigits(filteredBookings.length)} رزرو
+              نمایش {toPersianDigits(filteredBookings.length)} رزرو در باشگاه
             </div>
           </div>
         </div>
@@ -239,12 +327,14 @@ export function BookingsTable({
                   مربی
                 </th>
                 <th className="border-b border-border px-[22px] pb-[14px] text-right text-[12px] font-bold whitespace-nowrap text-ink-faint">
-                  زمان
+                  زمان و تاریخ
                 </th>
                 <th className="border-b border-border px-[22px] pb-[14px] text-right text-[12px] font-bold whitespace-nowrap text-ink-faint">
                   وضعیت
                 </th>
-                <th className="border-b border-border px-[22px] pb-[14px] text-right text-[12px] font-bold whitespace-nowrap text-ink-faint" />
+                <th className="border-b border-border px-[22px] pb-[14px] text-left text-[12px] font-bold whitespace-nowrap text-ink-faint">
+                  عملیات
+                </th>
               </tr>
             </thead>
             <tbody id="bBody">
@@ -272,14 +362,14 @@ export function BookingsTable({
                           </div>
                         </div>
                       </td>
-                      <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
+                      <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap font-medium text-ink">
                         {item.className}
                       </td>
                       <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
-                        {item.coach}
+                        {item.coach || "-"}
                       </td>
-                      <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
-                        {item.time}
+                      <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft" dir="ltr">
+                        <span className="inline-block text-right">{item.time}</span>
                       </td>
                       <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
                         <span
@@ -296,74 +386,68 @@ export function BookingsTable({
                         </span>
                       </td>
                       <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
-                        {item.status === "pending" ? (
-                          <div className="flex items-center gap-[6px]">
-                            <button
-                              type="button"
-                              onClick={() => onUpdateStatus(item.id, "confirmed")}
-                              className="inline-flex cursor-pointer items-center justify-center rounded-[8px] bg-ink px-[10px] py-[6px] text-[12.5px] font-semibold text-white transition-all hover:bg-primary-dark"
-                            >
-                              تأیید
-                            </button>
+                        <div className="flex items-center justify-end gap-[6px]">
+                          {item.status === "pending" ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => onUpdateStatus(item.id, "confirmed")}
+                                className="inline-flex cursor-pointer items-center justify-center rounded-[8px] bg-primary px-[10px] py-[6px] text-[12.5px] font-bold text-ink transition-all hover:bg-primary-dark hover:text-white"
+                              >
+                                تأیید
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onUpdateStatus(item.id, "cancelled")}
+                                className="inline-flex cursor-pointer items-center justify-center rounded-[8px] border border-border bg-surface px-[10px] py-[6px] text-[12.5px] font-semibold text-ink transition-all hover:border-[#F43F5E] hover:bg-[#FFF1F2] hover:text-[#9F1239]"
+                              >
+                                رد
+                              </button>
+                            </>
+                          ) : item.status === "confirmed" ? (
                             <button
                               type="button"
                               onClick={() => onUpdateStatus(item.id, "cancelled")}
-                              className="inline-flex cursor-pointer items-center justify-center rounded-[8px] border border-border bg-surface px-[10px] py-[6px] text-[12.5px] font-semibold text-ink transition-all hover:border-[#F43F5E] hover:bg-[#FFF1F2] hover:text-[#9F1239]"
+                              className="inline-flex cursor-pointer items-center justify-center rounded-[8px] border border-border bg-surface px-[10px] py-[6px] text-[12px] font-semibold text-ink-faint transition-all hover:border-[#F43F5E] hover:bg-[#FFF1F2] hover:text-[#9F1239]"
+                              title="لغو رزرو"
                             >
-                              رد
+                              لغو رزرو
                             </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-[4px]">
+                          ) : (
                             <button
                               type="button"
-                              onClick={() =>
-                                onUpdateStatus(
-                                  item.id,
-                                  item.status === "cancelled" ? "confirmed" : "cancelled"
-                                )
+                              onClick={() => onUpdateStatus(item.id, "confirmed")}
+                              className="inline-flex cursor-pointer items-center justify-center rounded-[8px] border border-border bg-surface px-[10px] py-[6px] text-[12px] font-semibold text-ink-faint transition-all hover:border-primary hover:bg-tint hover:text-primary-dark"
+                              title="تأیید مجدد"
+                            >
+                              تأیید مجدد
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof window !== "undefined" && window.confirm("آیا از حذف این رزرو اطمینان دارید؟")) {
+                                onDeleteBooking(item.id);
                               }
-                              className="inline-flex h-[32px] w-[32px] cursor-pointer items-center justify-center rounded-[8px] text-ink-faint transition-all duration-150 hover:bg-[#FFF1F2] hover:text-[#E11D48]"
-                              aria-label={item.status === "cancelled" ? "تأیید مجدد" : "لغو"}
-                              title={item.status === "cancelled" ? "تأیید مجدد" : "لغو"}
+                            }}
+                            className="inline-flex h-[32px] w-[32px] cursor-pointer items-center justify-center rounded-[8px] text-ink-faint transition-all duration-150 hover:bg-[#FFF1F2] hover:text-[#E11D48]"
+                            aria-label="حذف"
+                            title="حذف"
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-[16px] w-[16px]"
                             >
-                              <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="h-[16px] w-[16px]"
-                              >
-                                <path d="M18 6 6 18M6 6l12 12" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (typeof window !== "undefined" && window.confirm("حذف این رزرو؟")) {
-                                  onDeleteBooking(item.id);
-                                }
-                              }}
-                              className="inline-flex h-[32px] w-[32px] cursor-pointer items-center justify-center rounded-[8px] text-ink-faint transition-all duration-150 hover:bg-[#FFF1F2] hover:text-[#E11D48]"
-                              aria-label="حذف"
-                              title="حذف"
-                            >
-                              <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="h-[16px] w-[16px]"
-                              >
-                                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              </svg>
-                            </button>
-                          </div>
-                        )}
+                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -372,16 +456,16 @@ export function BookingsTable({
                 <tr>
                   <td
                     colSpan={6}
-                    className="p-[40px] text-center text-[14px] text-ink-faint"
+                    className="p-[48px] text-center text-[14px] text-ink-faint"
                   >
-                    <div>رزروی پیدا نشد</div>
+                    <div className="mb-2 font-medium">هیچ رزروی در فهرست وجود ندارد</div>
                     {onOpenAddModal && (
                       <button
                         type="button"
                         onClick={onOpenAddModal}
-                        className="mt-3 inline-flex items-center gap-1.5 rounded-[8px] bg-tint px-3 py-1.5 text-[12.5px] font-bold text-primary-dark hover:bg-primary/20 cursor-pointer"
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-[8px] bg-primary px-3 py-1.5 text-[12.5px] font-bold text-ink hover:bg-primary-dark hover:text-white cursor-pointer transition-colors"
                       >
-                        + ثبت رزرو جدید
+                        + ثبت اولین رزرو
                       </button>
                     )}
                   </td>
@@ -395,107 +479,154 @@ export function BookingsTable({
       {/* Add Booking Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-70 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-[4px]">
-          <div className="w-full max-w-[480px] rounded-[16px] border border-border bg-surface p-[24px] shadow-[0_20px_60px_rgba(15,23,42,0.15)]">
+          <div className="w-full max-w-[500px] rounded-[16px] border border-border bg-surface p-[24px] shadow-[0_20px_60px_rgba(15,23,42,0.15)] animate-in fade-in zoom-in-95 duration-200">
             <div className="mb-[20px] flex items-center justify-between border-b border-border pb-[14px]">
-              <h3 className="text-[17px] font-extrabold text-ink">
-                ثبت رزرو جدید
-              </h3>
+              <div>
+                <h3 className="text-[17px] font-extrabold text-ink">
+                  ثبت رزرو جدید کلاس
+                </h3>
+                <p className="text-[12px] text-ink-faint mt-1">
+                  انتخاب کلاس و عضو بر اساس اطلاعات سرور و پنل جنگو
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={onCloseAddModal}
-                className="text-ink-faint hover:text-ink"
+                className="text-ink-faint hover:text-ink cursor-pointer p-1 rounded-md"
               >
                 ✕
               </button>
             </div>
+
+            {submitError && (
+              <div className="mb-[14px] rounded-[10px] border border-[#F43F5E]/30 bg-[#FFF1F2] p-[12px] text-[13px] font-medium text-[#9F1239]">
+                <div className="font-bold flex items-center gap-1.5 mb-1">
+                  <span>⚠️</span>
+                  <span>پیام سرور جنگو:</span>
+                </div>
+                <div>{submitError}</div>
+              </div>
+            )}
+
             <form onSubmit={handleSaveNew} className="flex flex-col gap-[14px]">
+              {/* Member Selection */}
               <div>
                 <label className="mb-[6px] block text-[13px] font-bold text-ink">
-                  نام و نام خانوادگی عضو <span className="text-[#F43F5E]">*</span>
+                  عضو متقاضی رزرو <span className="text-[#F43F5E]">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
+                  value={selectedMemberId}
+                  onChange={(e) => {
+                    setSelectedMemberId(e.target.value);
+                    if (e.target.value !== "custom") {
+                      setCustomMemberName("");
+                    }
+                  }}
+                  className="w-full rounded-[12px] border-[1.5px] border-border bg-surface px-[14px] py-[10px] text-[13.5px] text-ink outline-none transition-all duration-200 focus:border-primary"
+                >
+                  {membersList.length > 0 ? (
+                    membersList.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.full_name} ({m.phone_number || "بدون شماره"})
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">در حال دریافت لیست اعضا…</option>
+                  )}
+                  <option value="custom">+ عضو آزاد یا نام دیگر…</option>
+                </select>
+
+                {selectedMemberId === "custom" && (
+                  <input
+                    type="text"
+                    required
+                    placeholder="نام و نام خانوادگی عضو آزاد"
+                    value={customMemberName}
+                    onChange={(e) => setCustomMemberName(e.target.value)}
+                    className="mt-2 w-full rounded-[12px] border-[1.5px] border-border bg-surface px-[14px] py-[10px] text-[13.5px] text-ink outline-none transition-all duration-200 focus:border-primary"
+                  />
+                )}
+              </div>
+
+              {/* Class Selection */}
+              <div>
+                <label className="mb-[6px] block text-[13px] font-bold text-ink">
+                  انتخاب کلاس ورزشی <span className="text-[#F43F5E]">*</span>
+                </label>
+                <select
+                  value={selectedClassId}
+                  onChange={(e) => setSelectedClassId(e.target.value)}
+                  className="w-full rounded-[12px] border-[1.5px] border-border bg-surface px-[14px] py-[10px] text-[13.5px] text-ink outline-none transition-all duration-200 focus:border-primary"
                   required
-                  placeholder="مثلا: مریم رضایی"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full rounded-[12px] border-[1.5px] border-border bg-surface px-[14px] py-[10px] text-[13.5px] text-ink outline-none transition-all duration-200 focus:border-primary focus:bg-tint"
-                />
+                >
+                  {gymClasses && gymClasses.length > 0 ? (
+                    gymClasses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title} — {c.day_name || "شنبه"} ساعت {c.start_time?.slice(0, 5)} {c.coach_name ? `(مربی: ${c.coach_name})` : ""}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">در حال دریافت کلاس‌ها از سرور…</option>
+                  )}
+                </select>
+
+                {selectedClass && (
+                  <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-ink-soft bg-bg p-2.5 rounded-[10px] border border-border/60">
+                    <span>مربی: <b>{selectedClass.coach_name || "بدون مربی"}</b></span>
+                    <span>•</span>
+                    <span>روز: <b>{selectedClass.day_name || "شنبه"}</b></span>
+                    <span>•</span>
+                    <span>ساعت: <b>{selectedClass.start_time?.slice(0, 5)}</b></span>
+                    <span>•</span>
+                    <span>ظرفیت: <b>{toPersianDigits(selectedClass.capacity || 0)} نفر</b></span>
+                  </div>
+                )}
               </div>
 
+              {/* Date and Initial Status */}
               <div className="grid grid-cols-2 gap-[12px]">
                 <div>
                   <label className="mb-[6px] block text-[13px] font-bold text-ink">
-                    کلاس
+                    تاریخ برگزاری <span className="text-[#F43F5E]">*</span>
                   </label>
-                  <select
-                    value={formData.className}
-                    onChange={(e) => setFormData({ ...formData, className: e.target.value })}
+                  <input
+                    type="date"
+                    required
+                    value={bookingDate}
+                    onChange={(e) => setBookingDate(e.target.value)}
                     className="w-full rounded-[12px] border-[1.5px] border-border bg-surface px-[14px] py-[10px] text-[13.5px] text-ink outline-none transition-all duration-200 focus:border-primary"
-                  >
-                    <option value="بدنسازی">بدنسازی</option>
-                    <option value="فیتنس">فیتنس</option>
-                    <option value="کراس‌فیت">کراس‌فیت</option>
-                    <option value="یوگا">یوگا</option>
-                    <option value="TRX">TRX</option>
-                    <option value="پیلاتس">پیلاتس</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-[6px] block text-[13px] font-bold text-ink">
-                    مربی
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.coach}
-                    onChange={(e) => setFormData({ ...formData, coach: e.target.value })}
-                    className="w-full rounded-[12px] border-[1.5px] border-border bg-surface px-[14px] py-[10px] text-[13.5px] text-ink outline-none transition-all duration-200 focus:border-primary focus:bg-tint"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-[12px]">
-                <div>
-                  <label className="mb-[6px] block text-[13px] font-bold text-ink">
-                    روز و ساعت
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="مثلا: دوشنبه ۱۸:۰۰"
-                    value={formData.time}
-                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                    className="w-full rounded-[12px] border-[1.5px] border-border bg-surface px-[14px] py-[10px] text-[13.5px] text-ink outline-none transition-all duration-200 focus:border-primary focus:bg-tint"
                   />
                 </div>
                 <div>
                   <label className="mb-[6px] block text-[13px] font-bold text-ink">
-                    وضعیت اولیه
+                    وضعیت اولیه رزرو
                   </label>
                   <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as BookingItem["status"] })}
+                    value={bookingStatus}
+                    onChange={(e) => setBookingStatus(e.target.value as "confirmed" | "pending")}
                     className="w-full rounded-[12px] border-[1.5px] border-border bg-surface px-[14px] py-[10px] text-[13.5px] text-ink outline-none transition-all duration-200 focus:border-primary"
                   >
-                    <option value="pending">در انتظار تأیید</option>
-                    <option value="confirmed">تأییدشده</option>
-                    <option value="cancelled">لغوشده</option>
+                    <option value="confirmed">تأییدشده (CONFIRMED)</option>
+                    <option value="pending">در انتظار تأیید (PENDING)</option>
                   </select>
                 </div>
               </div>
 
-              <div className="mt-[10px] flex justify-end gap-[10px]">
+              {/* Modal Buttons */}
+              <div className="mt-[12px] flex justify-end gap-[10px] border-t border-border pt-4">
                 <button
                   type="button"
                   onClick={onCloseAddModal}
-                  className="rounded-[10px] border border-border px-[16px] py-[9px] text-[13.5px] font-semibold text-ink hover:bg-bg"
+                  className="rounded-[10px] border border-border px-[16px] py-[9px] text-[13.5px] font-semibold text-ink hover:bg-bg cursor-pointer transition-colors"
                 >
                   انصراف
                 </button>
                 <button
                   type="submit"
-                  className="rounded-[10px] bg-ink px-[20px] py-[9px] text-[13.5px] font-semibold text-white transition-all hover:bg-primary-dark hover:shadow-emerald"
+                  disabled={isSubmitting}
+                  className="rounded-[10px] bg-primary px-[20px] py-[9px] text-[13.5px] font-bold text-ink transition-all hover:bg-primary-dark hover:text-white cursor-pointer shadow-sm disabled:opacity-50"
                 >
-                  ثبت رزرو
+                  {isSubmitting ? "در حال ارسال به جنگو…" : "ثبت نهایی رزرو"}
                 </button>
               </div>
             </form>
@@ -505,5 +636,3 @@ export function BookingsTable({
     </>
   );
 }
-
-export { INITIAL_BOOKINGS };

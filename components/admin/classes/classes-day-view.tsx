@@ -19,6 +19,7 @@ const DAYS: DayOfWeek[] = [
   "سه‌شنبه",
   "چهارشنبه",
   "پنجشنبه",
+  "جمعه",
 ];
 
 export function ClassesDayView({

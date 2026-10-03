@@ -4,7 +4,8 @@ export type DayOfWeek =
   | "دوشنبه"
   | "سه‌شنبه"
   | "چهارشنبه"
-  | "پنجشنبه";
+  | "پنجشنبه"
+  | "جمعه";
 
 export type TimeSlot = "۰۸:۰۰" | "۱۰:۰۰" | "۱۷:۰۰" | "۱۹:۳۰" | string;
 
@@ -25,11 +26,14 @@ export interface ClassSession {
   category: "بدنسازی" | "یوگا" | "فیتنس" | "کراس‌فیت" | "TRX" | "پیلاتس" | string;
   coach: string;
   coachShort: string;
+  coachId?: string | null;
   day: DayOfWeek;
   time: TimeSlot;
   endTime?: string;
+  durationMinutes?: number;
   enrolled: number;
   capacity: number;
+  isActive?: boolean;
   theme: ClassTheme;
   room: string;
   level: "مبتدی" | "متوسط" | "پیشرفته" | "همه سطوح";

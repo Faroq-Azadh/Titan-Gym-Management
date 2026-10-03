@@ -115,6 +115,8 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     {
       title: "رزروها",
       href: "/admin/bookings",
+      disabled: true,
+      badge: "غیرفعال",
       icon: (
         <svg
           viewBox="0 0 24 24"
@@ -270,7 +272,27 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
             مدیریت
           </div>
           {navManagement.map((item) => {
-            const isActive = pathname === item.href;
+            const isDisabled = (item as any).disabled;
+            const isActive = !isDisabled && pathname === item.href;
+
+            if (isDisabled) {
+              return (
+                <div
+                  key={item.href}
+                  className="relative mb-[3px] flex items-center gap-[12px] rounded-[11px] px-[12px] py-[11px] text-[14.5px] font-semibold text-ink-faint/60 opacity-50 cursor-not-allowed select-none transition-none"
+                  title="این بخش در حال حاضر غیرفعال است"
+                >
+                  {item.icon}
+                  <span>{item.title}</span>
+                  {item.badge && (
+                    <span className="mr-auto rounded-full bg-border/80 px-[8px] py-[2px] text-[10.5px] font-bold text-ink-faint">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={item.href}

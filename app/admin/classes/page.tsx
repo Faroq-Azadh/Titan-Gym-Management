@@ -12,11 +12,15 @@ import { ClassDetailModal } from "@/components/admin/classes/class-detail-modal"
 import { NewClassModal } from "@/components/admin/classes/new-class-modal";
 import {
   ClassSession,
+  ClassMember,
   INITIAL_CLASSES,
   DayOfWeek,
   TimeSlot,
 } from "@/components/admin/classes/types";
+import { getClassRoster, saveClassRoster } from "@/components/admin/classes/roster-store";
 import { cn } from "@/lib/utils";
+
+import { toPersianDigits, normalizeDigits } from "@/lib/persian-digits";
 
 type ViewMode = "month" | "week" | "day";
 
@@ -27,7 +31,7 @@ const DAYS_MAP: Record<number, DayOfWeek> = {
   3: "سه‌شنبه",
   4: "چهارشنبه",
   5: "پنجشنبه",
-  6: "شنبه",
+  6: "جمعه",
 };
 
 const DAYS_REV_MAP: Record<string, number> = {
@@ -35,9 +39,35 @@ const DAYS_REV_MAP: Record<string, number> = {
   "یکشنبه": 1,
   "دوشنبه": 2,
   "سه‌شنبه": 3,
+  "سه شنبه": 3,
   "چهارشنبه": 4,
   "پنجشنبه": 5,
+  "پنج‌شنبه": 5,
+  "جمعه": 6,
 };
+
+const LOCAL_CLASSES_META_KEY = "titan_gym_classes_meta";
+
+function getLocalClassesMeta(): Record<string, any> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(LOCAL_CLASSES_META_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalClassMeta(id: string, meta: any): void {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getLocalClassesMeta();
+    current[id] = { ...(current[id] || {}), ...meta };
+    localStorage.setItem(LOCAL_CLASSES_META_KEY, JSON.stringify(current));
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 export default function AdminClassesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -45,6 +75,7 @@ export default function AdminClassesPage() {
   const [selectedClass, setSelectedClass] = useState<ClassSession | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassSession | null>(null);
+  const [rosterRevision, setRosterRevision] = useState(0);
   const [defaultSlot, setDefaultSlot] = useState<{
     day: DayOfWeek;
     time: TimeSlot;
@@ -64,26 +95,83 @@ export default function AdminClassesPage() {
           ? (backendClasses as any).classes
           : [];
 
+    const localMeta = getLocalClassesMeta();
+
     return list.map((c) => {
       const day = DAYS_MAP[c.day_of_week] || "شنبه";
-      const time = (c.start_time ? c.start_time.slice(0, 5) : "۰۸:۰۰") as TimeSlot;
-      const coachName = c.coach_name || "مربی باشگاه";
+      const rawStart = c.start_time ? c.start_time.slice(0, 5) : "08:00";
+      const time = toPersianDigits(rawStart) as TimeSlot;
+
+      // Calculate end time
+      let endTime = "09:30";
+      if (c.start_time && c.duration_minutes) {
+        const [h, m] = c.start_time.split(":").map(Number);
+        const totalEnd = (h || 0) * 60 + (m || 0) + (c.duration_minutes || 60);
+        const endH = Math.floor(totalEnd / 60) % 24;
+        const endM = totalEnd % 60;
+        endTime = toPersianDigits(`${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`);
+      }
+
+      const coachName = c.coach_name || (c.coach ? "مربی اختصاصی" : "بدون مربی");
+      const meta = localMeta[String(c.id)] || {};
+
+      let category = meta.category;
+      if (!category) {
+        const t = c.title || "";
+        if (t.includes("یوگا")) category = "یوگا";
+        else if (t.includes("فیتنس")) category = "فیتنس";
+        else if (t.includes("کراس")) category = "کراس‌فیت";
+        else if (t.includes("TRX") || t.includes("تی آر ایکس")) category = "TRX";
+        else if (t.includes("پیلاتس")) category = "پیلاتس";
+        else if (t.includes("اسپینینگ")) category = "اسپینینگ";
+        else category = "بدنسازی";
+      }
+
+      let theme: ClassSession["theme"] = meta.theme;
+      if (!theme) {
+        if (category === "یوگا" || category === "فیتنس") theme = "cyan";
+        else if (category === "کراس‌فیت" || category === "TRX") theme = "amber";
+        else theme = "emerald";
+      }
+
+      const roster = getClassRoster(String(c.id));
+      const enrolledCount = roster.length > 0 ? roster.length : (c.booked || 0);
+
       return {
         id: String(c.id),
         name: c.title,
-        category: "بدنسازی",
+        category,
         coach: coachName,
         coachShort: coachName.split(" ")[0] || "مربی",
+        coachId: c.coach || null,
         day,
         time,
+        endTime,
+        durationMinutes: c.duration_minutes || 60,
         capacity: c.capacity || 20,
-        enrolled: c.booked || 0,
-        theme: "emerald" as const,
-        room: "سالن اصلی",
-        level: "همه سطوح" as const,
+        enrolled: enrolledCount,
+        members: roster,
+        theme,
+        room: meta.room || "سالن اصلی",
+        level: meta.level || "همه سطوح",
+        description: meta.description || "",
+        isActive: c.is_active !== false,
       };
     });
-  }, [backendClasses]);
+  }, [backendClasses, rosterRevision]);
+
+  const handleUpdateMembers = (classId: string, updatedMembers: ClassMember[]) => {
+    saveClassRoster(classId, updatedMembers);
+    setRosterRevision((prev) => prev + 1);
+    setSelectedClass((prev) => {
+      if (!prev || prev.id !== classId) return prev;
+      return {
+        ...prev,
+        enrolled: updatedMembers.length,
+        members: updatedMembers,
+      };
+    });
+  };
 
   // KPIs Calculations
   const activeClassesCount = classes.length;
@@ -99,34 +187,57 @@ export default function AdminClassesPage() {
     editId?: string,
   ) => {
     const day_of_week = DAYS_REV_MAP[classData.day] ?? 0;
-    const startTime = classData.time.includes(":") ? classData.time : "08:00";
+    
+    // Normalize start_time to HH:MM:SS
+    const cleanTime = normalizeDigits(classData.time || "08:00").trim();
+    const parts = cleanTime.split(":");
+    const hh = (parts[0] || "08").padStart(2, "0");
+    const mm = (parts[1] || "00").padStart(2, "0");
+    const startTimeFormatted = `${hh}:${mm}:00`;
 
-    try {
-      if (editId) {
-        await updateClassMutation.mutateAsync({
-          id: editId,
-          payload: {
-            title: classData.name,
-            day_of_week,
-            start_time: startTime,
-            duration_minutes: 60,
-            capacity: classData.capacity,
-          },
-        });
-        if (selectedClass?.id === editId) {
-          setSelectedClass({ ...classData, id: editId });
-        }
-      } else {
-        await createClassMutation.mutateAsync({
-          title: classData.name,
-          day_of_week,
-          start_time: startTime,
-          duration_minutes: 60,
-          capacity: classData.capacity,
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validCoachId = classData.coachId && UUID_REGEX.test(classData.coachId) ? classData.coachId : null;
+
+    const payload = {
+      title: classData.name.trim(),
+      coach: validCoachId,
+      day_of_week,
+      start_time: startTimeFormatted,
+      duration_minutes: classData.durationMinutes || 60,
+      capacity: classData.capacity || 20,
+      is_active: true,
+    };
+
+    if (editId) {
+      saveLocalClassMeta(editId, {
+        category: classData.category,
+        coachName: classData.coach,
+        theme: classData.theme,
+        room: classData.room,
+        level: classData.level,
+        description: classData.description,
+      });
+
+      await updateClassMutation.mutateAsync({
+        id: editId,
+        payload,
+      });
+
+      if (selectedClass?.id === editId || editingClass?.id === editId) {
+        setSelectedClass({ ...classData, id: editId });
+      }
+    } else {
+      const res = await createClassMutation.mutateAsync(payload);
+      if (res?.id) {
+        saveLocalClassMeta(String(res.id), {
+          category: classData.category,
+          coachName: classData.coach,
+          theme: classData.theme,
+          room: classData.room,
+          level: classData.level,
+          description: classData.description,
         });
       }
-    } catch {
-      // Handled
     }
   };
 
@@ -296,6 +407,7 @@ export default function AdminClassesPage() {
           setIsAddModalOpen(true);
         }}
         onDelete={handleDeleteClass}
+        onUpdateMembers={handleUpdateMembers}
       />
 
       {/* New / Edit Class Modal */}
