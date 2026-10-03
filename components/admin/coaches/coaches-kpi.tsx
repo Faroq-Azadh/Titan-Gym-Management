@@ -19,9 +19,40 @@ export function CoachesKpi({
 }: CoachesKpiProps) {
   const { data: coachesData } = useCoaches();
 
+  const [localCoachOverrides, setLocalCoachOverrides] = React.useState<Record<string, any>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("titan_gym_coaches_overrides");
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return {};
+  });
+
+  React.useEffect(() => {
+    const handleSync = () => {
+      try {
+        const saved = localStorage.getItem("titan_gym_coaches_overrides");
+        if (saved) setLocalCoachOverrides(JSON.parse(saved));
+      } catch {}
+    };
+    window.addEventListener("titan_coaches_updated", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("titan_coaches_updated", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, []);
+
   const list = Array.isArray(coachesData) ? coachesData : coachesData?.coaches || [];
   const total = totalCount ?? list.length;
-  const active = activeCount ?? list.filter((c) => c.is_active).length;
+  const active =
+    activeCount ??
+    list.filter((c) => {
+      const override = localCoachOverrides[String(c.id)];
+      if (override?.status) return override.status === "active";
+      return c.is_active !== false;
+    }).length;
   const calculatedAvgRating =
     avgRating ??
     (list.length > 0

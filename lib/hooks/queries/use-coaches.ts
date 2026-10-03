@@ -22,9 +22,11 @@ export function useAddCoach() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: AddCoachPayload) => coachesService.addCoach(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["coaches"] });
-      queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["coaches"] });
+      await queryClient.refetchQueries({ queryKey: ["coaches"] });
+      await queryClient.invalidateQueries({ queryKey: ["members"] });
+      await queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
     },
   });
 }
@@ -34,9 +36,11 @@ export function useUpdateCoach() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string | number; payload: Partial<AddCoachPayload> }) =>
       coachesService.updateCoach(id, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["coaches"] });
-      queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["coaches"] });
+      await queryClient.refetchQueries({ queryKey: ["coaches"] });
+      await queryClient.invalidateQueries({ queryKey: ["members"] });
+      await queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
     },
   });
 }
