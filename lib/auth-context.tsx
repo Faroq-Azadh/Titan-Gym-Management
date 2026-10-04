@@ -48,8 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (typeof window !== "undefined") {
         try {
           const cached = localStorage.getItem("titan_user");
+          const localAvatar = localStorage.getItem("titan_user_avatar");
           if (cached && isMounted) {
-            setUser(JSON.parse(cached));
+            const parsed = JSON.parse(cached);
+            if (localAvatar) parsed.avatar = localAvatar;
+            setUser(parsed);
           }
         } catch {
           // Ignore parse errors
@@ -60,6 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (tokenStorage.hasValidSession()) {
         try {
           const freshUser = await authService.getMe();
+          if (typeof window !== "undefined") {
+            const localAvatar = localStorage.getItem("titan_user_avatar");
+            if (localAvatar && (!freshUser.avatar || freshUser.avatar === "")) {
+              freshUser.avatar = localAvatar;
+            }
+          }
           if (isMounted) {
             setUser(freshUser);
           }
@@ -136,9 +145,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateUser = useCallback(async (payload: Partial<User>) => {
-    const updated = await authService.updateMe(payload);
-    setUser(updated);
-    return updated;
+    if (payload.avatar && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("titan_user_avatar", payload.avatar);
+      } catch {}
+    }
+
+    let updated: User | null = null;
+    try {
+      updated = await authService.updateMe(payload);
+    } catch {
+      // Backend might fail or reject large avatar base64 string; try updating rest
+      if (payload.avatar) {
+        try {
+          const { avatar: _av, ...rest } = payload;
+          updated = await authService.updateMe(rest);
+        } catch {}
+      }
+    }
+
+    setUser((prev) => {
+      const merged: User = {
+        ...(prev || ({} as User)),
+        ...(updated || {}),
+        ...payload,
+        avatar: payload.avatar || updated?.avatar || prev?.avatar || null,
+      };
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("titan_user", JSON.stringify(merged));
+        } catch {}
+      }
+      return merged;
+    });
+
+    return (updated || payload) as User;
   }, []);
 
   const isAuthenticated = Boolean(user && tokenStorage.hasValidSession());

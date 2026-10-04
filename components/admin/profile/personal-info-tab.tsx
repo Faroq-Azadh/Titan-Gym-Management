@@ -36,6 +36,7 @@ export function PersonalInfoTab({ user, onUpdateUser }: PersonalInfoTabProps) {
     setIsSubmitting(true);
     setErrorMessage(null);
 
+    const currentAvatar = user.avatarUrl || (typeof window !== "undefined" ? localStorage.getItem("titan_user_avatar") || undefined : undefined);
     const fullName = `${formData.firstName} ${formData.lastName}`.trim();
 
     try {
@@ -44,10 +45,11 @@ export function PersonalInfoTab({ user, onUpdateUser }: PersonalInfoTabProps) {
         full_name: fullName,
         phone_number: formData.phone.trim(),
         language: formData.language === "English" ? "en" : "fa",
+        avatar: currentAvatar || undefined,
       });
 
       // 2. Also update parent state for immediate UI reflection in summary card
-      onUpdateUser(formData);
+      onUpdateUser({ ...formData, avatarUrl: currentAvatar });
 
       // 3. Cache locally in titan_user
       if (typeof window !== "undefined") {
@@ -60,6 +62,7 @@ export function PersonalInfoTab({ user, onUpdateUser }: PersonalInfoTabProps) {
               ...obj,
               full_name: fullName,
               phone_number: formData.phone.trim(),
+              avatar: currentAvatar || obj.avatar,
             })
           );
         } catch {}

@@ -63,6 +63,11 @@ export default function AdminProfilePage() {
   });
 
   useEffect(() => {
+    let localAvatar: string | undefined;
+    if (typeof window !== "undefined") {
+      localAvatar = localStorage.getItem("titan_user_avatar") || undefined;
+    }
+
     if (authUser) {
       const parts = (authUser.full_name || "").trim().split(/\s+/);
       const firstName = parts[0] || "مدیر";
@@ -78,6 +83,12 @@ export default function AdminProfilePage() {
         email: authUser.email || prev.email,
         phone: authUser.phone_number || prev.phone,
         memberSince,
+        avatarUrl: prev.avatarUrl || authUser.avatar || localAvatar || undefined,
+      }));
+    } else if (localAvatar) {
+      setUser((prev) => ({
+        ...prev,
+        avatarUrl: prev.avatarUrl || localAvatar,
       }));
     }
   }, [authUser]);
@@ -110,10 +121,18 @@ export default function AdminProfilePage() {
   const handleTopSave = async () => {
     try {
       const fullName = `${user.firstName} ${user.lastName}`.trim();
+      const currentAvatar = user.avatarUrl || (typeof window !== "undefined" ? localStorage.getItem("titan_user_avatar") || undefined : undefined);
+      if (currentAvatar && typeof window !== "undefined") {
+        try {
+          localStorage.setItem("titan_user_avatar", currentAvatar);
+        } catch {}
+      }
+
       await updateUser({
         full_name: fullName,
         phone_number: user.phone.trim(),
         language: user.language === "English" ? "en" : "fa",
+        avatar: currentAvatar || undefined,
       });
     } catch {}
 
@@ -206,6 +225,7 @@ export default function AdminProfilePage() {
                   try {
                     localStorage.setItem("titan_user_avatar", updated.avatarUrl);
                   } catch {}
+                  updateUser({ avatar: updated.avatarUrl }).catch(() => {});
                 }
                 setUser((prev) => ({ ...prev, ...updated }));
               }}
