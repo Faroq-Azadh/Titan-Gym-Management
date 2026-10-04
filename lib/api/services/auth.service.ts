@@ -227,6 +227,49 @@ export const authService = {
   },
 
   /**
+   * Partial update current user fields
+   * Conforms to PATCH /users/me/
+   */
+  async updateMe(payload: Partial<User>): Promise<User> {
+    const updated = await apiClient.patch<User>(ENDPOINTS.AUTH.ME, payload, { requiresAuth: true });
+    if (typeof window !== "undefined" && updated) {
+      const cached = localStorage.getItem("titan_user");
+      let merged = updated;
+      if (cached) {
+        try {
+          merged = { ...JSON.parse(cached), ...updated };
+        } catch {}
+      }
+      localStorage.setItem("titan_user", JSON.stringify(merged));
+    }
+    return updated;
+  },
+
+  /**
+   * Change user password
+   * Conforms to POST /users/password/change/
+   */
+  async changePassword(payload: { old_password?: string; new_password1?: string; new_password2?: string; new_password?: string }): Promise<any> {
+    try {
+      return await apiClient.post(
+        ENDPOINTS.AUTH.CHANGE_PASSWORD,
+        payload,
+        { requiresAuth: true },
+      );
+    } catch (err) {
+      try {
+        return await apiClient.post(
+          ENDPOINTS.PROFILE.CHANGE_PASSWORD,
+          payload,
+          { requiresAuth: true },
+        );
+      } catch {
+        throw err;
+      }
+    }
+  },
+
+  /**
    * Log out user and clear stored tokens
    * Conforms to POST /users/logout/
    */
@@ -250,3 +293,4 @@ export const authService = {
     }
   },
 };
+

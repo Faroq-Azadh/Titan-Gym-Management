@@ -30,6 +30,7 @@ interface AuthContextType {
   verifyOtp: (payload: OTPVerifyPayload) => Promise<LoginResponse | DetailResponse>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<User | null>;
+  updateUser: (payload: Partial<User>) => Promise<User>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -134,6 +135,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const updateUser = useCallback(async (payload: Partial<User>) => {
+    const updated = await authService.updateMe(payload);
+    setUser(updated);
+    return updated;
+  }, []);
+
   const isAuthenticated = Boolean(user && tokenStorage.hasValidSession());
 
   return (
@@ -148,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verifyOtp,
         logout,
         refreshUser,
+        updateUser,
       }}
     >
       {children}

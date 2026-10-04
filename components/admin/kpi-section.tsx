@@ -2,6 +2,7 @@
 
 import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
 import { useMembersData } from "@/lib/members-store";
+import { usePaymentsData, formatFullToman } from "@/lib/payments-store";
 import type { OwnerDashboard } from "@/lib/api/services/gyms.service";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,7 @@ interface KpiSectionProps {
 export function KpiSection({ dashboard: propDashboard, isLoading: propIsLoading }: KpiSectionProps) {
   const { data: queryDashboard, isLoading: queryLoading } = useOwnerDashboard();
   const { counts: membersCounts } = useMembersData();
+  const { totalRevenue } = usePaymentsData();
   const dashboard = propDashboard !== undefined ? propDashboard : queryDashboard;
   const isLoading = propIsLoading !== undefined ? propIsLoading : queryLoading;
 
@@ -21,24 +23,13 @@ export function KpiSection({ dashboard: propDashboard, isLoading: propIsLoading 
     return val.toLocaleString("fa-IR");
   };
 
-  const formatRevenue = (rev: string | number | null | undefined): string => {
-    if (rev === null || rev === undefined || rev === "") return "۰ تومان";
-    const num = typeof rev === "string" ? parseFloat(rev.replace(/[^\d.-]/g, "")) : rev;
-    if (isNaN(num) || num === 0) return "۰ تومان";
-
-    if (num >= 1_000_000_000) {
-      return `${(num / 1_000_000_000).toLocaleString("fa-IR", { maximumFractionDigits: 1 })} میلیارد تومان`;
-    }
-    if (num >= 1_000_000) {
-      return `${(num / 1_000_000).toLocaleString("fa-IR", { maximumFractionDigits: 0 })} م تومان`;
-    }
-    return `${num.toLocaleString("fa-IR")} تومان`;
-  };
-
   const activeMembers = dashboard?.active_members && dashboard.active_members > 0 ? dashboard.active_members : membersCounts.active;
   const activeMembersTrend = dashboard?.active_members_trend_percent ?? 0;
 
-  const monthlyRevenue = formatRevenue(dashboard?.revenue_month);
+  const monthlyRevenue =
+    dashboard?.revenue_month && parseFloat(dashboard.revenue_month.replace(/[^\d.-]/g, "")) > 0
+      ? formatFullToman(dashboard.revenue_month)
+      : formatFullToman(totalRevenue);
   const revenueTrend = dashboard?.revenue_trend_percent ?? 0;
 
   const bookingsToday = dashboard?.bookings_today ?? (dashboard?.today_checkins ?? 0);

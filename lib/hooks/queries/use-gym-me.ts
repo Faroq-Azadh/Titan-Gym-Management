@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
-import { gymsService, type GymDetail } from "@/lib/api/services/gyms.service";
+import { gymsService, type GymDetail, type GymSettings } from "@/lib/api/services/gyms.service";
 import { tokenStorage } from "@/lib/api/token";
 
 export function useGymMe(): UseQueryResult<GymDetail, Error> {
@@ -9,7 +9,7 @@ export function useGymMe(): UseQueryResult<GymDetail, Error> {
     queryKey: ["gym-me"],
     queryFn: () => gymsService.getGymMe(),
     enabled: typeof window !== "undefined" && tokenStorage.hasValidSession(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 }
@@ -20,6 +20,30 @@ export function useUpdateGymMe() {
     mutationFn: (payload: Partial<GymDetail>) => gymsService.updateGymMe(payload),
     onSuccess: (updatedData) => {
       queryClient.setQueryData(["gym-me"], updatedData);
+      queryClient.invalidateQueries({ queryKey: ["gym-me"] });
+      queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+    },
+  });
+}
+
+export function useGymSettings(): UseQueryResult<GymSettings, Error> {
+  return useQuery<GymSettings, Error>({
+    queryKey: ["gym-settings"],
+    queryFn: () => gymsService.getSettings(),
+    enabled: typeof window !== "undefined" && tokenStorage.hasValidSession(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useUpdateGymSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Partial<GymSettings>) => gymsService.updateSettings(payload),
+    onSuccess: (updatedSettings) => {
+      queryClient.setQueryData(["gym-settings"], updatedSettings);
+      queryClient.invalidateQueries({ queryKey: ["gym-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["gym-me"] });
     },
   });
 }

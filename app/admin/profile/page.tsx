@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { useGymMe } from "@/lib/hooks/queries/use-gym-me";
@@ -11,6 +12,7 @@ import { PersonalInfoTab } from "@/components/admin/profile/personal-info-tab";
 import { ClubInfoTab } from "@/components/admin/profile/club-info-tab";
 import { SecurityTab } from "@/components/admin/profile/security-tab";
 import { NotificationsTab } from "@/components/admin/profile/notifications-tab";
+import { LogOut, Loader2, Check } from "lucide-react";
 import {
   ProfileUserData,
   ProfileClubData,
@@ -21,10 +23,24 @@ import {
 type ProfileTab = "personal" | "club" | "security" | "notif";
 
 export default function AdminProfilePage() {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>("personal");
-  const { user: authUser } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { user: authUser, logout, updateUser } = useAuth();
   const { data: gym } = useGymMe();
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch {
+      // Proceed even if network error
+    } finally {
+      router.push("/");
+    }
+  };
 
   const [user, setUser] = useState<ProfileUserData>({
     firstName: "مدیر",
@@ -89,6 +105,22 @@ export default function AdminProfilePage() {
     weeklyReport: true,
   });
 
+  const [topSavedNotice, setTopSavedNotice] = useState(false);
+
+  const handleTopSave = async () => {
+    try {
+      const fullName = `${user.firstName} ${user.lastName}`.trim();
+      await updateUser({
+        full_name: fullName,
+        phone_number: user.phone.trim(),
+        language: user.language === "English" ? "en" : "fa",
+      });
+    } catch {}
+
+    setTopSavedNotice(true);
+    setTimeout(() => setTopSavedNotice(false), 3000);
+  };
+
   return (
     <div className="flex min-h-screen bg-bg text-ink">
       {/* Sidebar Navigation */}
@@ -114,20 +146,38 @@ export default function AdminProfilePage() {
                 پروفایل مدیر
               </h1>
               <div className="mt-[5px] text-[14px] text-ink-faint">
-                مدیریت حساب کاربری، اطلاعات باشگاه و تنظیمات امنیتی
+                مدیریت حساب کاربری، اطلاعات باشگاه و تنظیمات امنیتی متصل به پنل جنگو
               </div>
             </div>
 
             <div className="flex items-center gap-[10px]">
+              {topSavedNotice && (
+                <span className="inline-flex items-center gap-[6px] rounded-full bg-tint px-[12px] py-[6px] text-[12px] font-bold text-primary-dark animate-in fade-in duration-200">
+                  <Check className="h-[14px] w-[14px]" />
+                  تغییرات در سامانه ثبت شد
+                </span>
+              )}
+
               <button
                 type="button"
+                onClick={() => setShowLogoutModal(true)}
+                className="inline-flex items-center gap-[6px] rounded-[10px] border border-[#FCA5A5] bg-[#FEF2F2] px-[14px] py-[8px] text-[13px] font-bold text-[#DC2626] transition-colors hover:bg-[#FEE2E2]"
+              >
+                <LogOut className="h-[15px] w-[15px]" />
+                <span>خروج از پنل</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => router.push("/admin")}
                 className="rounded-[10px] border-[1.5px] border-border bg-surface px-[14px] py-[8px] text-[13px] font-semibold text-ink transition-colors hover:border-primary hover:bg-tint"
               >
                 انصراف
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-[6px] rounded-[10px] bg-ink px-[16px] py-[8px] text-[13px] font-bold text-white transition-all duration-200 hover:-translate-y-[1px] hover:bg-primary-dark hover:shadow-[0_20px_50px_rgba(22,224,160,0.25)]"
+                onClick={handleTopSave}
+                className="inline-flex items-center gap-[6px] rounded-[10px] bg-ink px-[16px] py-[8px] text-[13px] font-bold text-white transition-all duration-200 hover:-translate-y-[1px] hover:bg-primary-dark hover:shadow-[0_20px_50px_rgba(22,224,160,0.25)] active:scale-95"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -151,9 +201,15 @@ export default function AdminProfilePage() {
             {/* Summary Left Card */}
             <ProfileSummaryCard
               user={user}
-              onUpdateUser={(updated) =>
-                setUser((prev) => ({ ...prev, ...updated }))
-              }
+              onUpdateUser={(updated) => {
+                if (updated.avatarUrl) {
+                  try {
+                    localStorage.setItem("titan_user_avatar", updated.avatarUrl);
+                  } catch {}
+                }
+                setUser((prev) => ({ ...prev, ...updated }));
+              }}
+              onLogoutClick={() => setShowLogoutModal(true)}
             />
 
             {/* Right Card with Tabs */}
@@ -301,6 +357,53 @@ export default function AdminProfilePage() {
           </div>
         </main>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-[16px]">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-ink/50 backdrop-blur-xs transition-opacity"
+            onClick={() => !isLoggingOut && setShowLogoutModal(false)}
+          />
+
+          {/* Modal Container */}
+          <div className="relative z-10 w-full max-w-[420px] overflow-hidden rounded-[20px] border border-border bg-surface p-[24px] shadow-[0_20px_60px_rgba(15,23,42,0.18)] animate-in fade-in zoom-in-95 duration-200">
+            <div className="mx-auto flex h-[54px] w-[54px] items-center justify-center rounded-[16px] bg-[#FEF2F2] text-[#DC2626]">
+              <LogOut className="h-[26px] w-[26px]" />
+            </div>
+
+            <div className="mt-[16px] text-center">
+              <h3 className="text-[18px] font-black text-ink">
+                خروج از پنل مدیریت
+              </h3>
+              <p className="mt-[8px] text-[13.5px] leading-[1.7] text-ink-faint">
+                آیا از خروج از پنل مدیریت اطمینان دارید؟ در صورت خروج، از حساب خارج شده و به صفحه اصلی تیتان منتقل خواهید شد.
+              </p>
+            </div>
+
+            <div className="mt-[24px] grid grid-cols-2 gap-[10px]">
+              <button
+                type="button"
+                disabled={isLoggingOut}
+                onClick={() => setShowLogoutModal(false)}
+                className="rounded-[12px] border border-border bg-surface py-[10px] text-[13.5px] font-bold text-ink transition-colors hover:bg-bg disabled:opacity-50"
+              >
+                خیر، انصراف
+              </button>
+              <button
+                type="button"
+                disabled={isLoggingOut}
+                onClick={handleConfirmLogout}
+                className="inline-flex items-center justify-center gap-[6px] rounded-[12px] bg-[#DC2626] py-[10px] text-[13.5px] font-bold text-white transition-all hover:bg-[#B91C1C] hover:shadow-[0_8px_20px_rgba(220,38,38,0.25)] disabled:opacity-50"
+              >
+                {isLoggingOut && <Loader2 className="h-[15px] w-[15px] animate-spin" />}
+                <span>بله، خارج شو</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

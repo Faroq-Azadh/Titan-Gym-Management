@@ -1,13 +1,15 @@
 import { useRef } from "react";
 import { ProfileUserData } from "./types";
 import { toPersianDigits } from "@/lib/persian-digits";
+import { LogOut } from "lucide-react";
 
 interface ProfileSummaryCardProps {
   user: ProfileUserData;
   onUpdateUser?: (updated: Partial<ProfileUserData>) => void;
+  onLogoutClick?: () => void;
 }
 
-export function ProfileSummaryCard({ user, onUpdateUser }: ProfileSummaryCardProps) {
+export function ProfileSummaryCard({ user, onUpdateUser, onLogoutClick }: ProfileSummaryCardProps) {
   const fullName = `${user.firstName} ${user.lastName}`;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -196,6 +198,20 @@ export function ProfileSummaryCard({ user, onUpdateUser }: ProfileSummaryCardPro
             </div>
           </div>
         </div>
+
+        {/* Logout Action Button */}
+        {onLogoutClick && (
+          <div className="mt-[20px] pt-[16px] border-t border-border">
+            <button
+              type="button"
+              onClick={onLogoutClick}
+              className="flex w-full items-center justify-center gap-[8px] rounded-[12px] border border-[#FCA5A5] bg-[#FEF2F2] p-[10px_16px] text-[13px] font-bold text-[#DC2626] transition-all hover:bg-[#FEE2E2] hover:shadow-xs active:scale-[0.98]"
+            >
+              <LogOut className="h-[16px] w-[16px]" />
+              <span>خروج از پنل مدیریت</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

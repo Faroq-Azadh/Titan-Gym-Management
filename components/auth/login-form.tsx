@@ -78,6 +78,15 @@ export function LoginForm({ onSubmit, onSuccess }: LoginFormProps) {
         password: values.password,
       });
 
+      // Always cache current active session password for profile security tab
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("titan_user_password", values.password);
+          localStorage.setItem("titan_saved_password", values.password);
+          sessionStorage.setItem("titan_active_password", values.password);
+        } catch {}
+      }
+
       // Handle Remember Me persistence
       if (typeof window !== "undefined") {
         try {

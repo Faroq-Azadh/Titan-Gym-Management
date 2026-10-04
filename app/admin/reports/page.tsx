@@ -113,17 +113,17 @@ export default function AdminReportsPage() {
           </div>
 
           {/* 4 KPI Summary Cards */}
-          <ReportsKpi />
+          <ReportsKpi range={range} />
 
           {/* Revenue Trend + Plan Distribution (Grid 2: 1.5fr / 1fr) */}
           <section className="mb-[18px] grid grid-cols-1 gap-[18px] min-[900px]:grid-cols-[1.5fr_1fr] print-grid-2">
-            <RevenueChart />
+            <RevenueChart range={range} />
             <PlansDonut />
           </section>
 
           {/* Member Growth + Peak Hours + Top Classes (Grid 3: 1fr / 1fr / 1fr) */}
           <section className="grid grid-cols-1 gap-[18px] min-[640px]:grid-cols-2 min-[900px]:grid-cols-3 print-grid-3">
-            <MemberGrowthChart />
+            <MemberGrowthChart range={range} />
             <PeakHoursChart />
             <TopClassesList />
           </section>
