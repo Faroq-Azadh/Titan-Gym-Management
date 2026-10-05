@@ -82,6 +82,7 @@ export const authService = {
   async login(payload: LoginPayload): Promise<LoginResponse> {
     const data = await apiClient.post<LoginResponse>(ENDPOINTS.AUTH.LOGIN, payload, {
       requiresAuth: false,
+      credentials: "include",
     });
 
     if (data?.access) {
@@ -104,6 +105,7 @@ export const authService = {
   async requestOtp(payload: OTPRequestPayload): Promise<DetailResponse> {
     return apiClient.post<DetailResponse>(ENDPOINTS.AUTH.OTP_REQUEST, payload, {
       requiresAuth: false,
+      credentials: "include",
     });
   },
 
@@ -115,7 +117,7 @@ export const authService = {
     const data = await apiClient.post<LoginResponse | DetailResponse>(
       ENDPOINTS.AUTH.OTP_VERIFY,
       payload,
-      { requiresAuth: false },
+      { requiresAuth: false, credentials: "include" },
     );
 
     // If tokens are returned directly
@@ -155,7 +157,7 @@ export const authService = {
     const data = await apiClient.post<LoginResponse>(
       ENDPOINTS.AUTH.GOOGLE,
       payload,
-      { requiresAuth: false },
+      { requiresAuth: false, credentials: "include" },
     );
 
     if (data?.access) {
@@ -249,24 +251,12 @@ export const authService = {
    * Change user password
    * Conforms to POST /users/password/change/
    */
-  async changePassword(payload: { old_password?: string; new_password1?: string; new_password2?: string; new_password?: string }): Promise<any> {
-    try {
-      return await apiClient.post(
-        ENDPOINTS.AUTH.CHANGE_PASSWORD,
-        payload,
-        { requiresAuth: true },
-      );
-    } catch (err) {
-      try {
-        return await apiClient.post(
-          ENDPOINTS.PROFILE.CHANGE_PASSWORD,
-          payload,
-          { requiresAuth: true },
-        );
-      } catch {
-        throw err;
-      }
-    }
+  async changePassword(payload: { new_password1: string; new_password2: string }): Promise<{ detail: string }> {
+    return apiClient.post<{ detail: string }>(
+      ENDPOINTS.AUTH.CHANGE_PASSWORD,
+      payload,
+      { requiresAuth: true },
+    );
   },
 
   /**
@@ -276,13 +266,11 @@ export const authService = {
   async logout(): Promise<void> {
     try {
       const refresh = tokenStorage.getRefreshToken();
-      if (refresh) {
-        await apiClient.post(
-          ENDPOINTS.AUTH.LOGOUT,
-          { refresh },
-          { requiresAuth: true },
-        );
-      }
+      await apiClient.post(
+        ENDPOINTS.AUTH.LOGOUT,
+        refresh ? { refresh } : {},
+        { requiresAuth: true, credentials: "include" },
+      );
     } catch {
       // Proceed to cleanup even if backend logout fails
     } finally {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 
 export const metadata: Metadata = {
   title: "پنل مدیر باشگاه — تیتان",
@@ -10,5 +11,9 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <div className="min-h-screen bg-bg text-ink">{children}</div>;
+  return (
+    <AdminAuthGuard>
+      <div className="min-h-screen bg-bg text-ink">{children}</div>
+    </AdminAuthGuard>
+  );
 }

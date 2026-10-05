@@ -30,4 +30,5 @@ export interface RequestConfig extends Omit<RequestInit, "body"> {
   body?: unknown;
   requiresAuth?: boolean;
   timeoutMs?: number;
+  _retryCount?: number;
 }

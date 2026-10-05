@@ -1,18 +1,11 @@
 import { API_BASE_URL, ENDPOINTS } from "./endpoints";
 import { parseDjangoError, ApiError } from "./errors";
-import { tokenStorage } from "./token";
+import { tokenStorage, isTokenUsable } from "./token";
 import type { RequestConfig } from "./types";
-
-interface PendingRequest {
-  resolve: (value: unknown) => void;
-  reject: (reason?: unknown) => void;
-  retry: () => Promise<unknown>;
-}
 
 class ApiClient {
   private customBaseUrl?: string;
-  private isRefreshing = false;
-  private refreshQueue: PendingRequest[] = [];
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor(baseUrl?: string) {
     if (baseUrl) {
@@ -62,20 +55,34 @@ class ApiClient {
   }
 
   /**
-   * Attempts to refresh the access token using the refresh token
+   * Single-flight token refresh: coalesces concurrent calls into a single in-flight promise.
+   * Supports both refresh token in body and httpOnly cookies (credentials: "include").
    */
-  private async refreshAccessToken(): Promise<string | null> {
-    const refreshToken = tokenStorage.getRefreshToken();
-    if (!refreshToken) return null;
+  public async getOrStartRefresh(): Promise<string | null> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
 
+    this.refreshPromise = this.executeRefresh().finally(() => {
+      this.refreshPromise = null;
+    });
+
+    return this.refreshPromise;
+  }
+
+  private async executeRefresh(): Promise<string | null> {
     try {
+      const refreshToken = tokenStorage.getRefreshToken();
+      const body = refreshToken ? { refresh: refreshToken } : {};
+
       const response = await fetch(`${this.getBaseUrl()}${ENDPOINTS.AUTH.REFRESH}`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({ refresh: refreshToken }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -90,6 +97,8 @@ class ApiClient {
         tokenStorage.setTokens({ access: newAccess, refresh: newRefresh });
         return newAccess;
       }
+
+      tokenStorage.clearTokens();
       return null;
     } catch {
       tokenStorage.clearTokens();
@@ -98,28 +107,7 @@ class ApiClient {
   }
 
   /**
-   * Process all queued requests after token refresh completes
-   */
-  private processQueue(success: boolean): void {
-    const currentQueue = [...this.refreshQueue];
-    this.refreshQueue = [];
-
-    currentQueue.forEach((item) => {
-      if (success) {
-        item.retry().then(item.resolve).catch(item.reject);
-      } else {
-        item.reject(
-          new ApiError({
-            status: 401,
-            detail: "نشست کاربری شما به پایان رسیده است. لطفاً مجدداً وارد شوید.",
-          }),
-        );
-      }
-    });
-  }
-
-  /**
-   * Core request executor with timeout, token injection, and 401 retry
+   * Core request executor with timeout, token injection, proactive refresh, and single-flight 401 retry
    */
   public async request<T = unknown>(
     endpoint: string,
@@ -131,8 +119,17 @@ class ApiClient {
       requiresAuth = true,
       timeoutMs = 15000,
       headers: customHeaders = {},
+      _retryCount = 0,
       ...customConfig
     } = config;
+
+    // Proactive refresh: if access token is expiring in < 60s, refresh before sending to avoid 401 roundtrip
+    if (requiresAuth && tokenStorage.hasValidSession()) {
+      const currentToken = tokenStorage.getAccessToken();
+      if (currentToken && !isTokenUsable(currentToken, 60)) {
+        await this.getOrStartRefresh();
+      }
+    }
 
     const url = this.buildUrl(endpoint, params);
     const headers: Record<string, string> = {
@@ -141,11 +138,9 @@ class ApiClient {
     };
 
     // Bearer token injection
-    if (requiresAuth) {
-      const token = tokenStorage.getAccessToken();
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
+    const sentToken = requiresAuth ? tokenStorage.getAccessToken() : null;
+    if (requiresAuth && sentToken) {
+      headers["Authorization"] = `Bearer ${sentToken}`;
     }
 
     // Set JSON content-type if body is not FormData
@@ -187,28 +182,29 @@ class ApiClient {
       const response = await executeFetch();
       clearTimeout(timeoutId);
 
-      // Handle 401 Unauthorized for authenticated requests (Silent Refresh)
-      if (response.status === 401 && requiresAuth && tokenStorage.getRefreshToken()) {
-        if (this.isRefreshing) {
-          return new Promise<T>((resolve, reject) => {
-            this.refreshQueue.push({
-              resolve: resolve as (val: unknown) => void,
-              reject,
-              retry: () => this.request<T>(endpoint, config),
-            });
+      // Handle 401 Unauthorized for authenticated requests
+      if (response.status === 401 && requiresAuth) {
+        if (_retryCount >= 1) {
+          // Hard failure: max 1 retry reached
+          tokenStorage.clearTokens();
+          throw new ApiError({
+            status: 401,
+            detail: "نشست کاربری شما منقضی شده است. لطفاً وارد حساب خود شوید.",
           });
         }
 
-        this.isRefreshing = true;
-        const newAccessToken = await this.refreshAccessToken();
-        this.isRefreshing = false;
+        // Stale-token check: if token changed while request was in-flight, retry immediately without another refresh
+        const currentToken = tokenStorage.getAccessToken();
+        if (currentToken && sentToken && currentToken !== sentToken && isTokenUsable(currentToken, 0)) {
+          return this.request<T>(endpoint, { ...config, _retryCount: _retryCount + 1 });
+        }
 
-        if (newAccessToken) {
-          this.processQueue(true);
-          // Retry original request with fresh token
-          return this.request<T>(endpoint, config);
+        // Attempt single-flight refresh
+        const freshToken = await this.getOrStartRefresh();
+        if (freshToken) {
+          return this.request<T>(endpoint, { ...config, _retryCount: _retryCount + 1 });
         } else {
-          this.processQueue(false);
+          tokenStorage.clearTokens();
           throw new ApiError({
             status: 401,
             detail: "نشست کاربری شما منقضی شده است. لطفاً وارد حساب خود شوید.",

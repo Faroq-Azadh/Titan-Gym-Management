@@ -97,17 +97,10 @@ export function SecurityTab({ security, onUpdateSecurity }: SecurityTabProps) {
 
     try {
       if (newPassword) {
-        // Attempt to call Django backend change-password endpoint
-        try {
-          await authService.changePassword({
-            old_password: currentPassword,
-            new_password1: newPassword,
-            new_password2: confirmPassword,
-            new_password: newPassword,
-          });
-        } catch (apiErr) {
-          console.warn("Backend change password note:", apiErr);
-        }
+        await authService.changePassword({
+          new_password1: newPassword,
+          new_password2: confirmPassword,
+        });
 
         // Replace current password with the newly entered password
         setCurrentPassword(newPassword);
@@ -140,7 +133,11 @@ export function SecurityTab({ security, onUpdateSecurity }: SecurityTabProps) {
       setSaved(true);
       setTimeout(() => setSaved(false), 4000);
     } catch (err: any) {
-      setErrorMessage("خطا در به‌روزرسانی رمز عبور؛ لطفاً مجدداً بررسی فرمایید.");
+      const msg =
+        err?.message ||
+        err?.detail ||
+        "خطا در به‌روزرسانی رمز عبور؛ لطفاً مجدداً بررسی فرمایید.";
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }

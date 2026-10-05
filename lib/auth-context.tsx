@@ -19,10 +19,14 @@ import {
   type DetailResponse,
 } from "@/lib/api/services/auth.service";
 import { tokenStorage } from "@/lib/api/token";
+import { getQueryClient } from "@/lib/react-query/query-client";
+
+export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  status: AuthStatus;
   isAuthenticated: boolean;
   loginWithPassword: (payload: LoginPayload) => Promise<LoginResponse>;
   loginWithGoogle: (payload: GoogleLoginPayload) => Promise<LoginResponse>;
@@ -44,7 +48,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
 
     const initAuth = async () => {
-      // 1. First try instant load from localStorage for snappy UI
+      // 1. Check if token exists and session is valid
+      const hasSession = tokenStorage.hasValidSession();
+
+      if (!hasSession) {
+        // Drop any stale cached user or session data
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("titan_user");
+          localStorage.removeItem("titan_user_avatar");
+        }
+        if (isMounted) {
+          setUser(null);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // 2. Hydrate cached user only if session is valid
       if (typeof window !== "undefined") {
         try {
           const cached = localStorage.getItem("titan_user");
@@ -59,24 +79,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 2. If token exists, sync latest profile from backend
-      if (tokenStorage.hasValidSession()) {
-        try {
-          const freshUser = await authService.getMe();
-          if (typeof window !== "undefined") {
-            const localAvatar = localStorage.getItem("titan_user_avatar");
-            if (localAvatar && (!freshUser.avatar || freshUser.avatar === "")) {
-              freshUser.avatar = localAvatar;
-            }
+      // 3. Sync latest profile from backend
+      try {
+        const freshUser = await authService.getMe();
+        if (typeof window !== "undefined") {
+          const localAvatar = localStorage.getItem("titan_user_avatar");
+          if (localAvatar && (!freshUser.avatar || freshUser.avatar === "")) {
+            freshUser.avatar = localAvatar;
           }
-          if (isMounted) {
-            setUser(freshUser);
-          }
-        } catch {
-          // Token might be invalid or expired and refresh failed
-          if (isMounted && !tokenStorage.hasValidSession()) {
-            setUser(null);
-          }
+        }
+        if (isMounted) {
+          setUser(freshUser);
+        }
+      } catch {
+        // Token might be invalid or expired and refresh failed
+        if (isMounted && !tokenStorage.hasValidSession()) {
+          setUser(null);
         }
       }
 
@@ -89,6 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Listen to global logout events
     const handleLogoutEvent = () => {
+      if (typeof window !== "undefined") {
+        try {
+          getQueryClient().clear();
+        } catch {}
+      }
       if (isMounted) {
         setUser(null);
       }
@@ -182,13 +205,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (updated || payload) as User;
   }, []);
 
-  const isAuthenticated = Boolean(user && tokenStorage.hasValidSession());
+  const status: AuthStatus = isLoading
+    ? "loading"
+    : user && tokenStorage.hasValidSession()
+      ? "authenticated"
+      : "unauthenticated";
+  const isAuthenticated = status === "authenticated";
 
   return (
     <AuthContext.Provider
       value={{
         user,
         isLoading,
+        status,
         isAuthenticated,
         loginWithPassword,
         loginWithGoogle,
