@@ -148,7 +148,6 @@ export function useMembersData(search?: string) {
           : [];
 
     return rawList
-      .filter((m: any) => m.is_active !== false)
       .map((m: any, idx: number) => {
         const memberId = String(m.id);
         const override = overrides[memberId] || {};

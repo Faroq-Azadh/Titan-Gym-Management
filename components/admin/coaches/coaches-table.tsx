@@ -27,6 +27,7 @@ import {
   User as UserIcon,
   Clock,
 } from "lucide-react";
+import { logActivity } from "@/lib/activities-store";
 
 export interface TeamMember {
   id: string;
@@ -390,9 +391,15 @@ export function CoachesTable({
   }, [team, filter, searchQuery]);
 
   const handleDelete = async (id: string) => {
-    if (typeof window !== "undefined" && window.confirm("آیا از حذف این عضو تیم اطمینان دارید؟")) {
+    const coachToDelete = team.find((m) => String(m.id) === String(id));
+    const coachName = coachToDelete?.name || "عضو تیم";
+    if (typeof window !== "undefined" && window.confirm(`آیا از حذف «${coachName}» اطمینان دارید؟`)) {
       try {
         await deleteCoachMutation.mutateAsync(id);
+        logActivity({
+          type: "ALERT",
+          text: `حذف مربی: ${coachName}`,
+        });
       } catch {
         // Handled
       }
@@ -447,6 +454,11 @@ export function CoachesTable({
       await queryClient.invalidateQueries({ queryKey: ["coaches"] });
       await queryClient.refetchQueries({ queryKey: ["coaches"] });
       await queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+
+      logActivity({
+        type: "EDIT",
+        text: `ویرایش اطلاعات مربی: ${formData.name.trim()}`,
+      });
     } catch (err) {
       console.error("Error updating coach in Django:", err);
     } finally {
@@ -503,6 +515,12 @@ export function CoachesTable({
         working_days: addFormData.working_days.length > 0 ? addFormData.working_days : undefined,
         send_invite: addFormData.send_invite,
         instant_activation: addFormData.instant_activation,
+      });
+
+      const coachName = `${addFormData.first_name.trim()} ${addFormData.last_name.trim()}`;
+      logActivity({
+        type: "COACH",
+        text: `ثبت مربی جدید: ${coachName} (${finalSpecialties.slice(0, 2).join("، ")})`,
       });
 
       // Reset form

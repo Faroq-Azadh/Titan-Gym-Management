@@ -7,6 +7,7 @@ import { ClassSession, ClassMember } from "./types";
 import { getClassRoster, saveClassRoster } from "./roster-store";
 import { useMembersData } from "@/lib/members-store";
 import { useCreateMember } from "@/lib/hooks/queries/use-members";
+import { logActivity } from "@/lib/activities-store";
 import {
   X,
   Clock,
@@ -148,6 +149,18 @@ export function ClassDetailModal({
 
     const updated = [newClassMember, ...members];
     updateRoster(updated);
+
+    logActivity({
+      type: "CLASS",
+      text: `ثبت‌نام «${newClassMember.name}» در کلاس «${cls.name}»`,
+    });
+    if (updated.length >= cls.capacity) {
+      logActivity({
+        type: "FULL",
+        text: `تکمیل ظرفیت کلاس «${cls.name}» (${toPersianDigits(cls.capacity)} نفر)`,
+      });
+    }
+
     setActionNotice({
       type: "success",
       text: `عضو «${newClassMember.name}» با موفقیت به کلاس اضافه شد.`,
@@ -209,6 +222,17 @@ export function ClassDetailModal({
       const updated = [newClassMember, ...members];
       updateRoster(updated);
 
+      logActivity({
+        type: "CLASS",
+        text: `ثبت‌نام «${newClassMember.name}» در کلاس «${cls.name}»`,
+      });
+      if (updated.length >= cls.capacity) {
+        logActivity({
+          type: "FULL",
+          text: `تکمیل ظرفیت کلاس «${cls.name}» (${toPersianDigits(cls.capacity)} نفر)`,
+        });
+      }
+
       setActionNotice({
         type: "success",
         text: `عضو جدید «${newClassMember.name}» با موفقیت به کلاس اضافه شد.`,
@@ -225,6 +249,12 @@ export function ClassDetailModal({
     if (confirm(`آیا از حذف «${memberName}» از این کلاس اطمینان دارید؟`)) {
       const updated = members.filter((m) => m.id !== memberId);
       updateRoster(updated);
+
+      logActivity({
+        type: "ALERT",
+        text: `حذف «${memberName}» از کلاس «${cls.name}»`,
+      });
+
       setActionNotice({
         type: "success",
         text: `«${memberName}» از لیست کلاس حذف شد.`,

@@ -94,6 +94,7 @@ import {
   MEMBERS_UPDATED_EVENT,
   type MemberOverride,
 } from "@/lib/members-store";
+import { logActivity } from "@/lib/activities-store";
 
 interface PlanOption {
   id?: string;
@@ -486,11 +487,13 @@ export function MembersTable({
   const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
-    if (!id) return;
+    const memberToDelete = members.find((m) => String(m.id) === String(id));
+    const memberName = memberToDelete?.name || "عضو";
+
     if (
       typeof window !== "undefined" &&
       !window.confirm(
-        "آیا از حذف این عضو اطمینان دارید؟\n(توجه: بر اساس معماری بک‌اند جنگو و جهت حفظ سوابق مالی و حضور و غیاب، رکورد کاربر غیرفعال (is_active: false) شده و از لیست اعضا حذف می‌گردد)"
+        `آیا از حذف «${memberName}» اطمینان دارید؟`
       )
     ) {
       return;
@@ -501,6 +504,11 @@ export function MembersTable({
     try {
       // 1. Delete or deactivate directly on Django
       await deleteMemberMutation.mutateAsync(id);
+
+      logActivity({
+        type: "ALERT",
+        text: `حذف عضو: ${memberName}`,
+      });
 
       // 2. Refetch directly from Django to keep frontend and backend in 100% sync
       await queryClient.invalidateQueries({ queryKey: ["members"] });
@@ -578,6 +586,11 @@ export function MembersTable({
 
       saveLocalMemberOverride(editingMember.id, updatedOverride);
       setLocalOverrides((prev) => ({ ...prev, [editingMember.id]: updatedOverride }));
+
+      logActivity({
+        type: "EDIT",
+        text: `ویرایش اطلاعات عضو: ${editFormData.name.trim() || editingMember.name}`,
+      });
     } catch (err) {
       console.error("Error editing member:", err);
     }
@@ -649,6 +662,14 @@ export function MembersTable({
           status: "active",
         });
       }
+
+      const selectedPlanObj = planOptions.find((p) => p.id === formData.membership_plan_id);
+      const planName = selectedPlanObj ? selectedPlanObj.name : "پلن ورزشی";
+      const memberFullName = `${formData.first_name.trim()} ${formData.last_name.trim()}`;
+      logActivity({
+        type: "MEMBER",
+        text: `ثبت‌نام عضو جدید: ${memberFullName} (${planName})`,
+      });
 
       // Reset form
       setFormData({

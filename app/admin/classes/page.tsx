@@ -21,6 +21,7 @@ import { getClassRoster, saveClassRoster } from "@/components/admin/classes/rost
 import { cn } from "@/lib/utils";
 
 import { toPersianDigits, normalizeDigits } from "@/lib/persian-digits";
+import { logActivity } from "@/lib/activities-store";
 
 type ViewMode = "month" | "week" | "day";
 
@@ -243,8 +244,13 @@ export default function AdminClassesPage() {
 
   const handleDeleteClass = async (id: string) => {
     if (typeof window !== "undefined" && window.confirm("آیا از حذف این کلاس اطمینان دارید؟")) {
+      const clsToDelete = classes.find((c) => c.id === id);
       try {
         await deleteClassMutation.mutateAsync(id);
+        logActivity({
+          type: "ALERT",
+          text: `حذف کلاس «${clsToDelete?.name || "ورزشی"}» از برنامه هفتگی`,
+        });
       } catch {
         // Handled
       }

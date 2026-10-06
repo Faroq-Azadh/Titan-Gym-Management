@@ -6,6 +6,7 @@ import { ClassSession, DayOfWeek, TimeSlot, ClassTheme } from "./types";
 import { useCoaches } from "@/lib/hooks/queries/use-coaches";
 import { normalizeDigits, toPersianDigits } from "@/lib/persian-digits";
 import { X, Loader2, AlertCircle } from "lucide-react";
+import { logActivity } from "@/lib/activities-store";
 
 interface NewClassModalProps {
   isOpen: boolean;
@@ -258,6 +259,18 @@ export function NewClassModal({
         },
         editClass?.id,
       );
+
+      if (editClass) {
+        logActivity({
+          type: "EDIT",
+          text: `ویرایش مشخصات کلاس «${name.trim()}»`,
+        });
+      } else {
+        logActivity({
+          type: "CLASS",
+          text: `ایجاد کلاس جدید «${name.trim()}» با ظرفیت ${toPersianDigits(capacity)} نفر`,
+        });
+      }
 
       onClose();
     } catch (err: any) {

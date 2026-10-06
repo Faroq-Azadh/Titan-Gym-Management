@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
 import { useMembersData } from "@/lib/members-store";
+import { useTodayAttendance } from "@/lib/attendance-store";
 import { toPersianDigits } from "@/lib/persian-digits";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ export function RevenueChart() {
 
   const { data: dashboard, isLoading: dashboardLoading } = useOwnerDashboard();
   const { members: liveMembers, isLoading: membersLoading } = useMembersData();
+  const { todayCheckins: attendanceToday } = useTodayAttendance(dashboard?.today_checkins);
 
   const isLoading = dashboardLoading && membersLoading;
 
@@ -50,7 +52,7 @@ export function RevenueChart() {
     if (dashboard?.weekly_attendance && dashboard.weekly_attendance.length > 0) {
       dashboard.weekly_attendance.forEach((item) => {
         const idx = PERSIAN_DAYS.indexOf(item.day);
-        if (idx !== -1 && item.checkins > 0) {
+        if (idx !== -1 && item.checkins >= 0) {
           checkinCounts[idx] = item.checkins;
         }
       });
@@ -62,29 +64,8 @@ export function RevenueChart() {
       newMembersCounts[dayIdx] += 1;
     });
 
-    // 3. Attendance reflects visits on registration days and active sessions
-    for (let i = 0; i <= todayDayIdx; i++) {
-      if (newMembersCounts[i] > 0) {
-        checkinCounts[i] = Math.max(checkinCounts[i], newMembersCounts[i]);
-      }
-    }
-
-    // Today's live attendance
-    const todayCheckins = dashboard?.today_checkins ?? 0;
-    const activeMembersCount = liveMembers.filter((m) => m.status === "active").length;
-
-    const todayVisits = Math.max(
-      todayCheckins,
-      newMembersCounts[todayDayIdx] + (activeMembersCount > 0 ? 1 : 0)
-    );
-    checkinCounts[todayDayIdx] = Math.max(checkinCounts[todayDayIdx], todayVisits);
-
-    // Natural attendance for past days of the week (i < todayDayIdx)
-    for (let i = 0; i < todayDayIdx; i++) {
-      if (checkinCounts[i] === 0 && activeMembersCount > 0) {
-        checkinCounts[i] = i % 2 === 0 ? Math.max(1, activeMembersCount) : Math.max(1, Math.round(activeMembersCount * 0.7));
-      }
-    }
+    // 3. Today's actual check-in / entry count (strictly separate from registrations)
+    checkinCounts[todayDayIdx] = attendanceToday;
 
     // Future days in current week (i > todayDayIdx) are not yet reached, keep 0
     for (let i = todayDayIdx + 1; i < 7; i++) {
@@ -92,14 +73,14 @@ export function RevenueChart() {
       newMembersCounts[i] = 0;
     }
 
-    const maxVal = Math.max(...checkinCounts, ...newMembersCounts, 5);
+    const maxVal = Math.max(...checkinCounts, ...newMembersCounts, 4);
 
     return {
       weeklyAttendance: checkinCounts,
       weeklyNewMembers: newMembersCounts,
       maxWeeklyVal: maxVal,
     };
-  }, [dashboard?.weekly_attendance, dashboard?.today_checkins, liveMembers, todayDayIdx]);
+  }, [dashboard?.weekly_attendance, attendanceToday, liveMembers, todayDayIdx]);
 
   // Monthly and Yearly data calculation
   const monthlyRevenue = [18, 24, 32, 28, 38, 45, 52]; // in million Tomans

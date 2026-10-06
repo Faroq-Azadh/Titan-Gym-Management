@@ -3,6 +3,7 @@
 import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
 import { useMembersData } from "@/lib/members-store";
 import { usePaymentsData, formatFullToman } from "@/lib/payments-store";
+import { useTodayAttendance } from "@/lib/attendance-store";
 import type { OwnerDashboard } from "@/lib/api/services/gyms.service";
 import { cn } from "@/lib/utils";
 
@@ -17,13 +18,15 @@ export function KpiSection({ dashboard: propDashboard, isLoading: propIsLoading 
   const { totalRevenue } = usePaymentsData();
   const dashboard = propDashboard !== undefined ? propDashboard : queryDashboard;
   const isLoading = propIsLoading !== undefined ? propIsLoading : queryLoading;
+  const { todayCheckins } = useTodayAttendance(dashboard?.today_checkins);
 
   const formatNumber = (val: number | null | undefined, fallback = "۰"): string => {
     if (val === null || val === undefined) return fallback;
     return val.toLocaleString("fa-IR");
   };
 
-  const activeMembers = dashboard?.active_members && dashboard.active_members > 0 ? dashboard.active_members : membersCounts.active;
+  const activeMembers =
+    membersCounts.total > 0 ? membersCounts.active : (dashboard?.active_members ?? 0);
   const activeMembersTrend = dashboard?.active_members_trend_percent ?? 0;
 
   const monthlyRevenue =
@@ -32,7 +35,8 @@ export function KpiSection({ dashboard: propDashboard, isLoading: propIsLoading 
       : formatFullToman(totalRevenue);
   const revenueTrend = dashboard?.revenue_trend_percent ?? 0;
 
-  const bookingsToday = dashboard?.bookings_today ?? (dashboard?.today_checkins ?? 0);
+  const todayBookings = dashboard?.bookings_today ?? 0;
+  const todayEntries = todayCheckins + todayBookings;
   const bookingsTrend = dashboard?.bookings_trend_percent ?? 0;
 
   const renewalRate = dashboard?.renewal_rate_percent ?? 0;
@@ -105,7 +109,7 @@ export function KpiSection({ dashboard: propDashboard, isLoading: propIsLoading 
         value: `${Math.abs(bookingsTrend).toLocaleString("fa-IR")}٪`,
         isUp: bookingsTrend >= 0,
       },
-      value: formatNumber(bookingsToday),
+      value: formatNumber(todayEntries),
       label: "رزرو و ورود امروز",
     },
     {

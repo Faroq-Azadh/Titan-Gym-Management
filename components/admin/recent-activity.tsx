@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
 import type { RecentActivityEvent } from "@/lib/api/services/gyms.service";
+import { useActivitiesData, type ActivityItem } from "@/lib/activities-store";
 import { cn } from "@/lib/utils";
 
 interface RecentActivityProps {
@@ -56,6 +57,62 @@ function getActivityConfig(type: string) {
           </svg>
         ),
       };
+    case "COACH":
+      return {
+        variant: "purple",
+        icon: (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-[18px] w-[18px]"
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M19 8v6M22 11h-6" />
+          </svg>
+        ),
+      };
+    case "EDIT":
+      return {
+        variant: "blue",
+        icon: (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-[18px] w-[18px]"
+          >
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+          </svg>
+        ),
+      };
+    case "FULL":
+      return {
+        variant: "rose",
+        icon: (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-[18px] w-[18px]"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        ),
+      };
     case "ALERT":
     case "WARNING":
       return {
@@ -94,6 +151,7 @@ function getActivityConfig(type: string) {
           </svg>
         ),
       };
+    case "MEMBER":
     default:
       return {
         variant: "emerald",
@@ -118,12 +176,12 @@ function getActivityConfig(type: string) {
 
 export function RecentActivity({ activities: propActivities, isLoading: propLoading }: RecentActivityProps) {
   const { data: dashboard, isLoading: queryLoading } = useOwnerDashboard();
-  const activities = propActivities ?? dashboard?.recent_activity;
+  const { activities: mergedActivities } = useActivitiesData(propActivities ?? dashboard?.recent_activity);
   const isLoading = propLoading ?? queryLoading;
 
-  const items = activities && activities.length > 0 ? activities : [];
+  const items = mergedActivities && mergedActivities.length > 0 ? mergedActivities.slice(0, 7) : [];
 
-  if (isLoading && !activities) {
+  if (isLoading && items.length === 0) {
     return (
       <div className="rounded-[16px] border border-border bg-surface p-[22px] shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
         <div className="flex items-center justify-between border-b border-border pb-[16px]">
@@ -146,7 +204,7 @@ export function RecentActivity({ activities: propActivities, isLoading: propLoad
         </div>
         <Link
           href="/admin/activities"
-          className="rounded-full bg-tint px-[11px] py-[5px] text-[11.5px] font-bold text-primary-dark"
+          className="rounded-full bg-tint px-[11px] py-[5px] text-[11.5px] font-bold text-primary-dark transition-colors hover:bg-primary/20"
         >
           همه
         </Link>
@@ -164,7 +222,7 @@ export function RecentActivity({ activities: propActivities, isLoading: propLoad
 
             return (
               <div
-                key={index}
+                key={item.id || index}
                 className={cn(
                   "flex gap-[13px] py-[14px]",
                   index < items.length - 1 && "border-b border-border",
@@ -175,8 +233,11 @@ export function RecentActivity({ activities: propActivities, isLoading: propLoad
                   className={cn(
                     "flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[11px]",
                     config.variant === "emerald" && "bg-tint text-primary-dark",
-                    config.variant === "cyan" && "bg-[#22D3EE]/12 text-[#0891B2]",
+                    config.variant === "cyan" && "bg-[#22D3EE]/15 text-[#0891B2]",
                     config.variant === "amber" && "bg-[#FFFBEB] text-[#B45309]",
+                    config.variant === "purple" && "bg-[#F3E8FF] text-[#7E22CE]",
+                    config.variant === "blue" && "bg-[#EFF6FF] text-[#2563EB]",
+                    config.variant === "rose" && "bg-[#FFF1F2] text-[#E11D48]",
                   )}
                 >
                   {config.icon}
