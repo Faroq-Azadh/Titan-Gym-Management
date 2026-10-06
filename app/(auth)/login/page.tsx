@@ -4,24 +4,18 @@ import { useState } from "react";
 import { VisualPanel } from "@/components/shared/visual-panel";
 import { MobileLogo } from "@/components/ui/logo";
 import { Card, CardBody, CardHead } from "@/components/ui/card";
-import { Divider } from "@/components/ui/divider";
 import { MethodSwitch, type LoginMethod } from "@/components/auth/method-switch";
 import { LoginForm } from "@/components/auth/login-form";
 import { OtpForm } from "@/components/auth/otp-form";
 import {
   GymRegistrationLink,
   RoleNote,
-  SocialLogin,
 } from "@/components/auth/social-login";
 import { MotionFade } from "@/components/shared/motion-fade";
 import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   const [method, setMethod] = useState<LoginMethod>("password");
-
-  const handleLogin = () => {
-    // Prepared for future API integration
-  };
 
   return (
     <div className="grid min-h-screen grid-cols-1 min-[981px]:grid-cols-2">
@@ -49,8 +43,6 @@ export default function LoginPage() {
                 <OtpForm />
               </div>
 
-              <Divider />
-              <SocialLogin />
               <RoleNote />
               <GymRegistrationLink />
             </CardBody>
