@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ProfileUserData } from "./types";
 import { useAuth } from "@/lib/auth-context";
 import { Check, Loader2, AlertCircle } from "lucide-react";
+import { getSavedManagerAvatar, saveManagerAvatar } from "@/lib/manager-avatar";
 
 interface PersonalInfoTabProps {
   user: ProfileUserData;
@@ -36,10 +37,14 @@ export function PersonalInfoTab({ user, onUpdateUser }: PersonalInfoTabProps) {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const currentAvatar = user.avatarUrl || (typeof window !== "undefined" ? localStorage.getItem("titan_user_avatar") || undefined : undefined);
+    const currentAvatar = user.avatarUrl || getSavedManagerAvatar(authUser?.email || (authUser ? String(authUser.id) : null)) || undefined;
     const fullName = `${formData.firstName} ${formData.lastName}`.trim();
 
     try {
+      if (currentAvatar) {
+        saveManagerAvatar(currentAvatar, authUser?.email || (authUser ? String(authUser.id) : null));
+      }
+
       // 1. Update in Django backend via PATCH /users/me/
       await updateUser({
         full_name: fullName,
@@ -51,29 +56,15 @@ export function PersonalInfoTab({ user, onUpdateUser }: PersonalInfoTabProps) {
       // 2. Also update parent state for immediate UI reflection in summary card
       onUpdateUser({ ...formData, avatarUrl: currentAvatar });
 
-      // 3. Cache locally in titan_user
-      if (typeof window !== "undefined") {
-        try {
-          const cached = localStorage.getItem("titan_user");
-          const obj = cached ? JSON.parse(cached) : {};
-          localStorage.setItem(
-            "titan_user",
-            JSON.stringify({
-              ...obj,
-              full_name: fullName,
-              phone_number: formData.phone.trim(),
-              avatar: currentAvatar || obj.avatar,
-            })
-          );
-        } catch {}
-      }
-
       setSaved(true);
       setTimeout(() => setSaved(false), 3500);
     } catch (err: any) {
       console.warn("Update user profile in Django warning:", err);
       // Still persist locally
-      onUpdateUser(formData);
+      if (currentAvatar) {
+        saveManagerAvatar(currentAvatar, authUser?.email || (authUser ? String(authUser.id) : null));
+      }
+      onUpdateUser({ ...formData, avatarUrl: currentAvatar });
       setSaved(true);
       setTimeout(() => setSaved(false), 3500);
     } finally {

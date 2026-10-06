@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { toPersianDigits, normalizeDigits } from "@/lib/persian-digits";
 import { ClassSession, ClassMember } from "./types";
 import { getClassRoster, saveClassRoster } from "./roster-store";
-import { useMembersData } from "@/lib/members-store";
+import { useMembersData, normalizePersianName } from "@/lib/members-store";
 import { useCreateMember } from "@/lib/hooks/queries/use-members";
 import { logActivity } from "@/lib/activities-store";
 import {
@@ -189,36 +189,42 @@ export function ClassDetailModal({
     try {
       let createdMemberId = `m_${Date.now()}`;
 
-      // Create in gym database / Django so the member is synchronized with the members list
-      const parts = newMemberName.trim().split(/\s+/);
-      const firstName = parts[0] || "عضو";
-      const lastName = parts.slice(1).join(" ") || "جدید";
-      const todayIso = new Date().toISOString().slice(0, 10);
+      // Check if this member is already registered in the gym:
+      const cleanPhone = normalizeDigits(newMemberPhone).trim();
+      const existingGymMember = allGymMembers.find(
+        (m) =>
+          normalizePersianName(m.fullName || m.name) === normalizePersianName(newMemberName) ||
+          (cleanPhone && cleanPhone.length >= 7 && normalizeDigits(m.phone || "").endsWith(cleanPhone))
+      );
 
-      try {
-        const res = await createMemberMutation.mutateAsync({
-          first_name: firstName,
-          last_name: lastName,
-          phone_number: normalizeDigits(newMemberPhone) || undefined,
-          start_date: todayIso,
-        });
-        if (res?.id) {
-          createdMemberId = String(res.id);
+      if (existingGymMember) {
+        createdMemberId = String(existingGymMember.id);
+      } else {
+        const parts = newMemberName.trim().split(/\s+/);
+        const firstName = parts[0] || "عضو";
+        const lastName = parts.slice(1).join(" ") || "جدید";
+        const todayIso = new Date().toISOString().slice(0, 10);
+
+        try {
+          const res = await createMemberMutation.mutateAsync({
+            first_name: firstName,
+            last_name: lastName,
+            phone_number: cleanPhone || undefined,
+            start_date: todayIso,
+          });
+          if (res?.id) {
+            createdMemberId = String(res.id);
+          }
+        } catch (err: any) {
+          console.warn("Could not register member in backend, continuing with local member ID:", err);
         }
-      } catch (err: any) {
-        console.error("Failed to register member in gym database:", err);
-        setActionNotice({
-          type: "error",
-          text: "خطا در ثبت عضو در پایگاه اعضا. عضو باید در لیست اعضا ثبت شود تا به کلاس اضافه گردد.",
-        });
-        return;
       }
 
       const newClassMember: ClassMember = {
         id: createdMemberId,
         name: newMemberName.trim(),
         avatar: getInitials(newMemberName),
-        phone: newMemberPhone.trim() || "—",
+        phone: newMemberPhone.trim() || (existingGymMember ? existingGymMember.phone : "—"),
         joinedDate: getTodayJalaliString(),
         status: "active",
       };

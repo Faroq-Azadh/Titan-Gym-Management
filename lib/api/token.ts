@@ -206,7 +206,6 @@ export const tokenStorage = {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(REFRESHABLE_KEY);
     localStorage.removeItem("titan_user");
-    localStorage.removeItem("titan_user_avatar");
 
     deleteCookie(ACCESS_TOKEN_KEY);
     deleteCookie(REFRESH_TOKEN_KEY);

@@ -13,6 +13,7 @@ import { ClubInfoTab } from "@/components/admin/profile/club-info-tab";
 import { SecurityTab } from "@/components/admin/profile/security-tab";
 import { NotificationsTab } from "@/components/admin/profile/notifications-tab";
 import { LogOut, Loader2, Check } from "lucide-react";
+import { getSavedManagerAvatar, saveManagerAvatar } from "@/lib/manager-avatar";
 import {
   ProfileUserData,
   ProfileClubData,
@@ -63,10 +64,7 @@ export default function AdminProfilePage() {
   });
 
   useEffect(() => {
-    let localAvatar: string | undefined;
-    if (typeof window !== "undefined") {
-      localAvatar = localStorage.getItem("titan_user_avatar") || undefined;
-    }
+    const localAvatar = getSavedManagerAvatar(authUser?.email || (authUser ? String(authUser.id) : null)) || undefined;
 
     if (authUser) {
       const parts = (authUser.full_name || "").trim().split(/\s+/);
@@ -83,7 +81,7 @@ export default function AdminProfilePage() {
         email: authUser.email || prev.email,
         phone: authUser.phone_number || prev.phone,
         memberSince,
-        avatarUrl: prev.avatarUrl || authUser.avatar || localAvatar || undefined,
+        avatarUrl: authUser.avatar || localAvatar || prev.avatarUrl || undefined,
       }));
     } else if (localAvatar) {
       setUser((prev) => ({
@@ -121,11 +119,9 @@ export default function AdminProfilePage() {
   const handleTopSave = async () => {
     try {
       const fullName = `${user.firstName} ${user.lastName}`.trim();
-      const currentAvatar = user.avatarUrl || (typeof window !== "undefined" ? localStorage.getItem("titan_user_avatar") || undefined : undefined);
-      if (currentAvatar && typeof window !== "undefined") {
-        try {
-          localStorage.setItem("titan_user_avatar", currentAvatar);
-        } catch {}
+      const currentAvatar = user.avatarUrl || getSavedManagerAvatar(authUser?.email || (authUser ? String(authUser.id) : null)) || undefined;
+      if (currentAvatar) {
+        saveManagerAvatar(currentAvatar, authUser?.email || (authUser ? String(authUser.id) : null));
       }
 
       await updateUser({
@@ -222,9 +218,7 @@ export default function AdminProfilePage() {
               user={user}
               onUpdateUser={(updated) => {
                 if (updated.avatarUrl) {
-                  try {
-                    localStorage.setItem("titan_user_avatar", updated.avatarUrl);
-                  } catch {}
+                  saveManagerAvatar(updated.avatarUrl, authUser?.email || (authUser ? String(authUser.id) : null));
                   updateUser({ avatar: updated.avatarUrl }).catch(() => {});
                 }
                 setUser((prev) => ({ ...prev, ...updated }));

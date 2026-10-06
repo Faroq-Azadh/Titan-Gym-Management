@@ -23,6 +23,11 @@ import {
   purgeDisallowedMembersFromAllClassRosters,
   ROSTER_UPDATED_EVENT,
 } from "@/components/admin/classes/roster-store";
+import {
+  getDeletedClassIds,
+  markClassAsDeleted,
+  unmarkClassAsDeleted,
+} from "@/lib/api/services/classes.service";
 import { useMembersData } from "@/lib/members-store";
 import { cn } from "@/lib/utils";
 
@@ -126,9 +131,14 @@ export default function AdminClassesPage() {
           ? (backendClasses as any).classes
           : [];
 
+    const deletedIds = getDeletedClassIds();
+    const activeList = list.filter(
+      (c) => c && c.is_active !== false && !deletedIds.has(String(c.id))
+    );
+
     const localMeta = getLocalClassesMeta();
 
-    return list.map((c) => {
+    return activeList.map((c) => {
       const day = DAYS_MAP[c.day_of_week] || "شنبه";
       const rawStart = c.start_time ? c.start_time.slice(0, 5) : "08:00";
       const time = toPersianDigits(rawStart) as TimeSlot;
@@ -241,6 +251,7 @@ export default function AdminClassesPage() {
     };
 
     if (editId) {
+      unmarkClassAsDeleted(editId);
       saveLocalClassMeta(editId, {
         category: classData.category,
         coachName: classData.coach,
@@ -261,6 +272,7 @@ export default function AdminClassesPage() {
     } else {
       const res = await createClassMutation.mutateAsync(payload);
       if (res?.id) {
+        unmarkClassAsDeleted(String(res.id));
         saveLocalClassMeta(String(res.id), {
           category: classData.category,
           coachName: classData.coach,
@@ -276,6 +288,10 @@ export default function AdminClassesPage() {
   const handleDeleteClass = async (id: string) => {
     if (typeof window !== "undefined" && window.confirm("آیا از حذف این کلاس اطمینان دارید؟")) {
       const clsToDelete = classes.find((c) => c.id === id);
+      markClassAsDeleted(id);
+      try {
+        localStorage.removeItem(`titan_gym_class_roster_${id}`);
+      } catch {}
       try {
         await deleteClassMutation.mutateAsync(id);
         logActivity({

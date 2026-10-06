@@ -111,19 +111,75 @@ function saveLocalBookings(bookings: BookingRosterRow[]): void {
   }
 }
 
+export const DELETED_CLASSES_KEY = "titan_gym_deleted_class_ids";
+
+export function getDeletedClassIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(DELETED_CLASSES_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function markClassAsDeleted(id: string | number): void {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const set = getDeletedClassIds();
+    set.add(String(id));
+    localStorage.setItem(DELETED_CLASSES_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+export function unmarkClassAsDeleted(id: string | number): void {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const set = getDeletedClassIds();
+    set.delete(String(id));
+    localStorage.setItem(DELETED_CLASSES_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+export function isDeletedClass(id: string | number): boolean {
+  if (!id) return false;
+  return getDeletedClassIds().has(String(id));
+}
+
 export const classesService = {
   /**
-   * List all class templates
+   * List all class templates (strictly excluding inactive or deleted classes)
    */
   async getClasses(): Promise<GymClassTemplate[]> {
-    return apiClient.get<GymClassTemplate[]>(ENDPOINTS.CLASSES.LIST, { requiresAuth: true });
+    const res = await apiClient.get<GymClassTemplate[]>(ENDPOINTS.CLASSES.LIST, { requiresAuth: true });
+    const list: GymClassTemplate[] = Array.isArray(res)
+      ? res
+      : Array.isArray((res as any)?.results)
+        ? (res as any).results
+        : Array.isArray((res as any)?.classes)
+          ? (res as any).classes
+          : [];
+    const deletedIds = getDeletedClassIds();
+    return list.filter((c) => c && c.is_active !== false && !deletedIds.has(String(c.id)));
   },
 
   /**
-   * Get weekly calendar grid + KPI stats
+   * Get weekly calendar grid + KPI stats (strictly excluding inactive or deleted classes)
    */
   async getCalendar(): Promise<ClassCalendarResponse> {
-    return apiClient.get<ClassCalendarResponse>(ENDPOINTS.CLASSES.CALENDAR, { requiresAuth: true });
+    const res = await apiClient.get<ClassCalendarResponse>(ENDPOINTS.CLASSES.CALENDAR, { requiresAuth: true });
+    const deletedIds = getDeletedClassIds();
+    if (res && res.classes && Array.isArray(res.classes)) {
+      res.classes = res.classes.filter((c) => c && c.is_active !== false && !deletedIds.has(String(c.id)));
+    }
+    if (res && res.schedule && typeof res.schedule === "object") {
+      for (const key of Object.keys(res.schedule)) {
+        if (Array.isArray(res.schedule[key])) {
+          res.schedule[key] = res.schedule[key].filter((c) => c && c.is_active !== false && !deletedIds.has(String(c.id)));
+        }
+      }
+    }
+    return res;
   },
 
   /**
@@ -131,16 +187,22 @@ export const classesService = {
    */
   async createClass(payload: CreateClassPayload): Promise<GymClassTemplate> {
     const res = await apiClient.post<any>(ENDPOINTS.CLASSES.LIST, payload, { requiresAuth: true });
-    if (res && res.class) {
-      return res.class as GymClassTemplate;
+    const target = (res && res.class) ? (res.class as GymClassTemplate) : (res as GymClassTemplate);
+    if (target?.id) {
+      unmarkClassAsDeleted(target.id);
     }
-    return res as GymClassTemplate;
+    return target;
   },
 
   /**
    * Update a class template in Django
    */
   async updateClass(id: string | number, payload: Partial<CreateClassPayload>): Promise<GymClassTemplate> {
+    if (payload.is_active !== false) {
+      unmarkClassAsDeleted(id);
+    } else {
+      markClassAsDeleted(id);
+    }
     const res = await apiClient.patch<any>(ENDPOINTS.CLASSES.DETAIL(id), payload, { requiresAuth: true });
     const target = res?.class || res || {};
     return {
@@ -154,7 +216,12 @@ export const classesService = {
    * Deactivate a class in Django (Django sets is_active=false instead of hard DELETE)
    */
   async deleteClass(id: string | number): Promise<void> {
-    await apiClient.patch(ENDPOINTS.CLASSES.DETAIL(id), { is_active: false }, { requiresAuth: true });
+    markClassAsDeleted(id);
+    try {
+      await apiClient.delete(ENDPOINTS.CLASSES.DETAIL(id), { requiresAuth: true });
+    } catch {
+      await apiClient.patch(ENDPOINTS.CLASSES.DETAIL(id), { is_active: false }, { requiresAuth: true });
+    }
   },
 
   /**

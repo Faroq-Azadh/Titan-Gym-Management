@@ -20,6 +20,11 @@ import {
 } from "@/lib/api/services/auth.service";
 import { tokenStorage } from "@/lib/api/token";
 import { getQueryClient } from "@/lib/react-query/query-client";
+import {
+  getSavedManagerAvatar,
+  saveManagerAvatar,
+  AVATAR_UPDATED_EVENT,
+} from "@/lib/manager-avatar";
 
 export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -52,10 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const hasSession = tokenStorage.hasValidSession();
 
       if (!hasSession) {
-        // Drop any stale cached user or session data
+        // Drop any stale cached user session, but preserve manager profile picture
         if (typeof window !== "undefined") {
           localStorage.removeItem("titan_user");
-          localStorage.removeItem("titan_user_avatar");
         }
         if (isMounted) {
           setUser(null);
@@ -68,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (typeof window !== "undefined") {
         try {
           const cached = localStorage.getItem("titan_user");
-          const localAvatar = localStorage.getItem("titan_user_avatar");
+          const localAvatar = getSavedManagerAvatar();
           if (cached && isMounted) {
             const parsed = JSON.parse(cached);
             if (localAvatar) parsed.avatar = localAvatar;
@@ -82,11 +86,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 3. Sync latest profile from backend
       try {
         const freshUser = await authService.getMe();
-        if (typeof window !== "undefined") {
-          const localAvatar = localStorage.getItem("titan_user_avatar");
-          if (localAvatar && (!freshUser.avatar || freshUser.avatar === "")) {
-            freshUser.avatar = localAvatar;
-          }
+        const localAvatar = getSavedManagerAvatar(freshUser.email || String(freshUser.id));
+        if (localAvatar && (!freshUser.avatar || freshUser.avatar === "")) {
+          freshUser.avatar = localAvatar;
+        } else if (freshUser.avatar) {
+          saveManagerAvatar(freshUser.avatar, freshUser.email || String(freshUser.id));
         }
         if (isMounted) {
           setUser(freshUser);
@@ -118,16 +122,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("titan:auth-logout", handleLogoutEvent);
 
+    // Listen to avatar updates
+    const handleAvatarUpdate = (e: any) => {
+      const newAvatar = e.detail?.avatar;
+      if (newAvatar && isMounted) {
+        setUser((prev) => (prev ? { ...prev, avatar: newAvatar } : prev));
+      }
+    };
+    window.addEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdate);
+
     return () => {
       isMounted = false;
       window.removeEventListener("titan:auth-logout", handleLogoutEvent);
+      window.removeEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdate);
     };
   }, []);
 
   const loginWithPassword = useCallback(async (payload: LoginPayload) => {
     const res = await authService.login(payload);
     if (res.user) {
+      const savedAvatar = getSavedManagerAvatar(res.user.email || String(res.user.id));
+      if (savedAvatar && (!res.user.avatar || res.user.avatar === "")) {
+        res.user.avatar = savedAvatar;
+      } else if (res.user.avatar) {
+        saveManagerAvatar(res.user.avatar, res.user.email || String(res.user.id));
+      }
       setUser(res.user);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("titan_user", JSON.stringify(res.user));
+        } catch {}
+      }
     }
     return res;
   }, []);
@@ -135,7 +160,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithGoogle = useCallback(async (payload: GoogleLoginPayload) => {
     const res = await authService.googleLogin(payload);
     if (res.user) {
+      const savedAvatar = getSavedManagerAvatar(res.user.email || String(res.user.id));
+      if (savedAvatar && (!res.user.avatar || res.user.avatar === "")) {
+        res.user.avatar = savedAvatar;
+      } else if (res.user.avatar) {
+        saveManagerAvatar(res.user.avatar, res.user.email || String(res.user.id));
+      }
       setUser(res.user);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("titan_user", JSON.stringify(res.user));
+        } catch {}
+      }
     }
     return res;
   }, []);
@@ -147,7 +183,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyOtp = useCallback(async (payload: OTPVerifyPayload) => {
     const res = await authService.verifyOtp(payload);
     if ("user" in res && res.user) {
+      const savedAvatar = getSavedManagerAvatar(res.user.email || String(res.user.id));
+      if (savedAvatar && (!res.user.avatar || res.user.avatar === "")) {
+        res.user.avatar = savedAvatar;
+      } else if (res.user.avatar) {
+        saveManagerAvatar(res.user.avatar, res.user.email || String(res.user.id));
+      }
       setUser(res.user);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("titan_user", JSON.stringify(res.user));
+        } catch {}
+      }
     }
     return res;
   }, []);
@@ -160,6 +207,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = useCallback(async () => {
     try {
       const u = await authService.getMe();
+      if (u) {
+        const savedAvatar = getSavedManagerAvatar(u.email || String(u.id));
+        if (savedAvatar && (!u.avatar || u.avatar === "")) {
+          u.avatar = savedAvatar;
+        } else if (u.avatar) {
+          saveManagerAvatar(u.avatar, u.email || String(u.id));
+        }
+      }
       setUser(u);
       return u;
     } catch {
@@ -168,10 +223,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateUser = useCallback(async (payload: Partial<User>) => {
-    if (payload.avatar && typeof window !== "undefined") {
-      try {
-        localStorage.setItem("titan_user_avatar", payload.avatar);
-      } catch {}
+    if (payload.avatar) {
+      saveManagerAvatar(payload.avatar, user?.email || (user ? String(user.id) : null));
     }
 
     let updated: User | null = null;
@@ -188,11 +241,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setUser((prev) => {
+      const effectiveAvatar =
+        payload.avatar ||
+        updated?.avatar ||
+        getSavedManagerAvatar(prev?.email || (prev ? String(prev.id) : null)) ||
+        prev?.avatar ||
+        null;
+
       const merged: User = {
         ...(prev || ({} as User)),
         ...(updated || {}),
         ...payload,
-        avatar: payload.avatar || updated?.avatar || prev?.avatar || null,
+        avatar: effectiveAvatar,
       };
       if (typeof window !== "undefined") {
         try {
@@ -203,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return (updated || payload) as User;
-  }, []);
+  }, [user]);
 
   const status: AuthStatus =
     isLoading || (!user && tokenStorage.hasValidSession())

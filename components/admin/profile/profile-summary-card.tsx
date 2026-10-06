@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { ProfileUserData } from "./types";
 import { toPersianDigits } from "@/lib/persian-digits";
 import { LogOut } from "lucide-react";
+import { compressAvatarImage } from "@/lib/manager-avatar";
 
 interface ProfileSummaryCardProps {
   user: ProfileUserData;
@@ -17,7 +18,7 @@ export function ProfileSummaryCard({ user, onUpdateUser, onLogoutClick }: Profil
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -26,13 +27,14 @@ export function ProfileSummaryCard({ user, onUpdateUser, onLogoutClick }: Profil
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (reader.result && typeof reader.result === "string") {
-        onUpdateUser?.({ avatarUrl: reader.result });
+    try {
+      const compressed = await compressAvatarImage(file);
+      if (compressed) {
+        onUpdateUser?.({ avatarUrl: compressed });
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn("Failed to process avatar image:", err);
+    }
   };
 
   return (

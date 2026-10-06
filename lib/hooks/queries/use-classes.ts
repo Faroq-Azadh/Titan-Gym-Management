@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   classesService,
+  markClassAsDeleted,
   type GymClassTemplate,
   type ClassCalendarResponse,
   type BookingRosterResponse,
@@ -96,9 +97,10 @@ export function useDeleteClass() {
   return useMutation({
     mutationFn: (id: string | number) => classesService.deleteClass(id),
     onSuccess: async (_, id) => {
+      markClassAsDeleted(id);
       queryClient.setQueryData<GymClassTemplate[]>(["classes"], (old) => {
         if (!old || !Array.isArray(old)) return old;
-        return old.filter((item) => String(item.id) !== String(id));
+        return old.filter((item) => String(item.id) !== String(id) && item.is_active !== false);
       });
       await queryClient.invalidateQueries({ queryKey: ["classes"] });
       await queryClient.refetchQueries({ queryKey: ["classes"] });

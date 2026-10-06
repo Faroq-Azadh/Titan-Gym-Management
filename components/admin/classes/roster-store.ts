@@ -4,16 +4,10 @@ import { isDeletedMember, normalizePersianName } from "@/lib/members-store";
 const CLASS_ROSTER_PREFIX = "titan_gym_class_roster_";
 export const ROSTER_UPDATED_EVENT = "titan_gym_roster_updated";
 
-const BLACKLISTED_MEMBER_NAMES = new Set([
+// Only Maryam Rezaei and explicitly deleted members are disallowed
+const DISALLOWED_MOCK_NAMES = new Set([
   "مریم رضایی",
-  "محمد محمدی",
-  "علی احمدی",
-  "رضا قاسمی",
   "مریم حسینی",
-  "سارا نیکنام",
-  "حسین رضوانی",
-  "مهرداد نادری",
-  "زهرا موسوی",
 ]);
 
 /**
@@ -22,7 +16,6 @@ const BLACKLISTED_MEMBER_NAMES = new Set([
 export function isDisallowedMember(m: any, validMembers?: any[]): boolean {
   if (!m) return true;
   const idStr = String(m.id || "").trim();
-  if (/^m[1-8]$/i.test(idStr)) return true;
   if (/^class_m[1-8]$/i.test(idStr)) return true;
 
   const name = String(m.name || m.fullName || "").trim();
@@ -30,11 +23,16 @@ export function isDisallowedMember(m: any, validMembers?: any[]): boolean {
   const maryamNorm = normalizePersianName("مریم رضایی");
 
   if (normName === maryamNorm || normName.includes(maryamNorm)) return true;
-  if (BLACKLISTED_MEMBER_NAMES.has(name)) return true;
+  if (DISALLOWED_MOCK_NAMES.has(name)) return true;
   if (isDeletedMember(idStr, name)) return true;
 
   // If a list of active gym members is provided, ensure this member actually exists in it
   if (validMembers && Array.isArray(validMembers) && validMembers.length > 0) {
+    // If it's a newly added member (ID starting with m_ or timestamp), allow it
+    if (idStr.startsWith("m_")) {
+      return false;
+    }
+
     const rawPhone = String(m.phone || "").replace(/[^\d]/g, "");
     const foundInValidList = validMembers.some((vm: any) => {
       if (vm.isActive === false || vm.is_active === false) return false;
