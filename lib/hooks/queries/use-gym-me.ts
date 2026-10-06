@@ -4,12 +4,21 @@ import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tan
 import { gymsService, type GymDetail, type GymSettings } from "@/lib/api/services/gyms.service";
 import { tokenStorage } from "@/lib/api/token";
 
+import { setActiveGymScope, getCurrentUserScope } from "@/lib/session-scope";
+
 export function useGymMe(): UseQueryResult<GymDetail, Error> {
+  const userScope = getCurrentUserScope();
   return useQuery<GymDetail, Error>({
-    queryKey: ["gym-me"],
-    queryFn: () => gymsService.getGymMe(),
+    queryKey: ["gym-me", userScope],
+    queryFn: async () => {
+      const res = await gymsService.getGymMe();
+      if (res) {
+        setActiveGymScope(res.id ? String(res.id) : null, res.name || null);
+      }
+      return res;
+    },
     enabled: typeof window !== "undefined" && tokenStorage.hasValidSession(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
     refetchOnWindowFocus: false,
   });
 }

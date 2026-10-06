@@ -40,26 +40,37 @@ export interface MemberCounts {
   newThisMonth: number;
 }
 
+import { getCurrentGymScope, getCurrentUserScope, isFlexGymOrFarooq } from "@/lib/session-scope";
+
 export const MEMBERS_OVERRIDES_KEY = "titan_gym_members_overrides";
 export const MEMBERS_UPDATED_EVENT = "titan_gym_members_updated";
 
 export const DELETED_MEMBER_IDS_KEY = "titan_gym_deleted_member_ids";
 export const DELETED_MEMBER_NAMES_KEY = "titan_gym_deleted_member_names";
 
-export function getDeletedMemberIds(): Set<string> {
+export function getDeletedMemberIdsKey(scope?: string): string {
+  const s = scope || getCurrentGymScope();
+  return `titan_deleted_members_${s}`;
+}
+
+export function getDeletedMemberIds(scope?: string): Set<string> {
   if (typeof window === "undefined") return new Set();
   try {
-    const raw = localStorage.getItem(DELETED_MEMBER_IDS_KEY);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
+    const key = getDeletedMemberIdsKey(scope);
+    const raw = localStorage.getItem(key);
+    if (raw) return new Set(JSON.parse(raw));
+    const legacy = localStorage.getItem(DELETED_MEMBER_IDS_KEY);
+    return legacy ? new Set(JSON.parse(legacy)) : new Set();
   } catch {
     return new Set();
   }
 }
 
-export function getDeletedMemberNames(): Set<string> {
+export function getDeletedMemberNames(scope?: string): Set<string> {
   if (typeof window === "undefined") return new Set(["مریم رضایی"]);
   try {
-    const raw = localStorage.getItem(DELETED_MEMBER_NAMES_KEY);
+    const key = `titan_deleted_member_names_${scope || getCurrentGymScope()}`;
+    const raw = localStorage.getItem(key);
     const parsed: string[] = raw ? JSON.parse(raw) : [];
     return new Set(["مریم رضایی", ...parsed]);
   } catch {
@@ -67,16 +78,18 @@ export function getDeletedMemberNames(): Set<string> {
   }
 }
 
-export function markMemberAsDeleted(id: string, name?: string): void {
+export function markMemberAsDeleted(id: string, name?: string, scope?: string): void {
   if (typeof window === "undefined") return;
   try {
-    const ids = getDeletedMemberIds();
+    const ids = getDeletedMemberIds(scope);
     if (id) ids.add(String(id));
-    localStorage.setItem(DELETED_MEMBER_IDS_KEY, JSON.stringify(Array.from(ids)));
+    const keyIds = getDeletedMemberIdsKey(scope);
+    localStorage.setItem(keyIds, JSON.stringify(Array.from(ids)));
 
-    const names = getDeletedMemberNames();
+    const names = getDeletedMemberNames(scope);
     if (name?.trim()) names.add(name.trim());
-    localStorage.setItem(DELETED_MEMBER_NAMES_KEY, JSON.stringify(Array.from(names)));
+    const keyNames = `titan_deleted_member_names_${scope || getCurrentGymScope()}`;
+    localStorage.setItem(keyNames, JSON.stringify(Array.from(names)));
   } catch {}
 }
 
@@ -130,14 +143,48 @@ export function getPhoneLookupKeys(phone?: string | null): string[] {
   return Array.from(new Set(keys));
 }
 
+export function getLocalMemberOverridesKey(scope?: string): string {
+  const s = scope || getCurrentGymScope();
+  return `titan_members_overrides_${s}`;
+}
+
 /**
  * Safely retrieve local member overrides from browser storage
  */
-export function getLocalMemberOverrides(): Record<string, MemberOverride> {
+export function getLocalMemberOverrides(scope?: string): Record<string, MemberOverride> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = localStorage.getItem(MEMBERS_OVERRIDES_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const isFlex = isFlexGymOrFarooq();
+    const key = getLocalMemberOverridesKey(scope);
+    const raw = localStorage.getItem(key);
+    let result: Record<string, MemberOverride> = raw ? JSON.parse(raw) : {};
+
+    if (isFlex) {
+      const userKey = `titan_members_overrides_user_${getCurrentUserScope()}`;
+      const userRaw = localStorage.getItem(userKey);
+      if (userRaw) {
+        try {
+          const userOverrides = JSON.parse(userRaw);
+          result = { ...userOverrides, ...result };
+        } catch {}
+      }
+
+      const legacy = localStorage.getItem(MEMBERS_OVERRIDES_KEY);
+      if (legacy) {
+        try {
+          const legacyOverrides = JSON.parse(legacy);
+          result = { ...legacyOverrides, ...result };
+        } catch {}
+      }
+
+      // Persist merged to both
+      if (Object.keys(result).length > 0) {
+        localStorage.setItem(key, JSON.stringify(result));
+        localStorage.setItem(MEMBERS_OVERRIDES_KEY, JSON.stringify(result));
+      }
+    }
+
+    return result;
   } catch {
     return {};
   }
@@ -146,12 +193,16 @@ export function getLocalMemberOverrides(): Record<string, MemberOverride> {
 /**
  * Save an override for a member and notify all listeners across the app
  */
-export function saveLocalMemberOverride(id: string, override: MemberOverride): void {
+export function saveLocalMemberOverride(id: string, override: MemberOverride, scope?: string): void {
   if (typeof window === "undefined" || !id) return;
   try {
-    const current = getLocalMemberOverrides();
-    current[id] = { ...current[id], ...override };
-    localStorage.setItem(MEMBERS_OVERRIDES_KEY, JSON.stringify(current));
+    const key = getLocalMemberOverridesKey(scope);
+    const current = getLocalMemberOverrides(scope);
+    current[id] = { ...(current[id] || {}), ...override };
+    localStorage.setItem(key, JSON.stringify(current));
+    if (isFlexGymOrFarooq()) {
+      localStorage.setItem(MEMBERS_OVERRIDES_KEY, JSON.stringify(current));
+    }
     window.dispatchEvent(new CustomEvent(MEMBERS_UPDATED_EVENT, { detail: { id, override } }));
   } catch (err) {
     console.error("Failed to save member override:", err);
@@ -161,16 +212,20 @@ export function saveLocalMemberOverride(id: string, override: MemberOverride): v
 /**
  * Save multiple overrides in a single atomic storage write
  */
-export function saveLocalMemberOverridesBatch(entries: Record<string, MemberOverride>): void {
+export function saveLocalMemberOverridesBatch(entries: Record<string, MemberOverride>, scope?: string): void {
   if (typeof window === "undefined") return;
   try {
-    const current = getLocalMemberOverrides();
-    for (const [key, val] of Object.entries(entries)) {
-      if (key) {
-        current[key] = { ...current[key], ...val };
+    const key = getLocalMemberOverridesKey(scope);
+    const current = getLocalMemberOverrides(scope);
+    for (const [k, val] of Object.entries(entries)) {
+      if (k) {
+        current[k] = { ...current[k], ...val };
       }
     }
-    localStorage.setItem(MEMBERS_OVERRIDES_KEY, JSON.stringify(current));
+    localStorage.setItem(key, JSON.stringify(current));
+    if (isFlexGymOrFarooq()) {
+      localStorage.setItem(MEMBERS_OVERRIDES_KEY, JSON.stringify(current));
+    }
     window.dispatchEvent(new CustomEvent(MEMBERS_UPDATED_EVENT, { detail: entries }));
   } catch (err) {
     console.error("Failed to batch save member overrides:", err);
@@ -240,9 +295,13 @@ export function useMembersData(search?: string) {
     };
 
     window.addEventListener(MEMBERS_UPDATED_EVENT, handleUpdate);
+    window.addEventListener("titan:gym-changed", handleUpdate);
+    window.addEventListener("titan:auth-logout", handleUpdate);
     window.addEventListener("storage", handleUpdate);
     return () => {
       window.removeEventListener(MEMBERS_UPDATED_EVENT, handleUpdate);
+      window.removeEventListener("titan:gym-changed", handleUpdate);
+      window.removeEventListener("titan:auth-logout", handleUpdate);
       window.removeEventListener("storage", handleUpdate);
     };
   }, []);

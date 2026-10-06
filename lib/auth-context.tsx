@@ -25,6 +25,7 @@ import {
   saveManagerAvatar,
   AVATAR_UPDATED_EVENT,
 } from "@/lib/manager-avatar";
+import { purgeLegacyGlobalStores } from "@/lib/session-scope";
 
 export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -68,13 +69,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Purge legacy global un-scoped stores
+      purgeLegacyGlobalStores();
+
       // 2. Hydrate cached user only if session is valid
       if (typeof window !== "undefined") {
         try {
           const cached = localStorage.getItem("titan_user");
-          const localAvatar = getSavedManagerAvatar();
           if (cached && isMounted) {
             const parsed = JSON.parse(cached);
+            const localAvatar = getSavedManagerAvatar(parsed?.email || (parsed?.id ? String(parsed.id) : null));
             if (localAvatar) parsed.avatar = localAvatar;
             setUser(parsed);
           }
@@ -141,6 +145,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithPassword = useCallback(async (payload: LoginPayload) => {
     const res = await authService.login(payload);
     if (res.user) {
+      try {
+        getQueryClient().clear();
+      } catch {}
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("titan_user", JSON.stringify(res.user));
+        } catch {}
+      }
+      purgeLegacyGlobalStores();
+
       const savedAvatar = getSavedManagerAvatar(res.user.email || String(res.user.id));
       if (savedAvatar && (!res.user.avatar || res.user.avatar === "")) {
         res.user.avatar = savedAvatar;
@@ -148,11 +162,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         saveManagerAvatar(res.user.avatar, res.user.email || String(res.user.id));
       }
       setUser(res.user);
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem("titan_user", JSON.stringify(res.user));
-        } catch {}
-      }
     }
     return res;
   }, []);
@@ -160,6 +169,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithGoogle = useCallback(async (payload: GoogleLoginPayload) => {
     const res = await authService.googleLogin(payload);
     if (res.user) {
+      try {
+        getQueryClient().clear();
+      } catch {}
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("titan_user", JSON.stringify(res.user));
+        } catch {}
+      }
+      purgeLegacyGlobalStores();
+
       const savedAvatar = getSavedManagerAvatar(res.user.email || String(res.user.id));
       if (savedAvatar && (!res.user.avatar || res.user.avatar === "")) {
         res.user.avatar = savedAvatar;
@@ -167,11 +186,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         saveManagerAvatar(res.user.avatar, res.user.email || String(res.user.id));
       }
       setUser(res.user);
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem("titan_user", JSON.stringify(res.user));
-        } catch {}
-      }
     }
     return res;
   }, []);
@@ -183,6 +197,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyOtp = useCallback(async (payload: OTPVerifyPayload) => {
     const res = await authService.verifyOtp(payload);
     if ("user" in res && res.user) {
+      try {
+        getQueryClient().clear();
+      } catch {}
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("titan_user", JSON.stringify(res.user));
+        } catch {}
+      }
+      purgeLegacyGlobalStores();
+
       const savedAvatar = getSavedManagerAvatar(res.user.email || String(res.user.id));
       if (savedAvatar && (!res.user.avatar || res.user.avatar === "")) {
         res.user.avatar = savedAvatar;
@@ -190,17 +214,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         saveManagerAvatar(res.user.avatar, res.user.email || String(res.user.id));
       }
       setUser(res.user);
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem("titan_user", JSON.stringify(res.user));
-        } catch {}
-      }
     }
     return res;
   }, []);
 
   const logout = useCallback(async () => {
     await authService.logout();
+    try {
+      getQueryClient().clear();
+    } catch {}
+    try {
+      purgeLegacyGlobalStores();
+    } catch {}
     setUser(null);
   }, []);
 

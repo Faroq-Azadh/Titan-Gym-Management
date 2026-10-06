@@ -3,6 +3,8 @@
  * Supports safe browser storage with fallback and SSR guards.
  */
 
+import { purgeLegacyGlobalStores } from "@/lib/session-scope";
+
 const ACCESS_TOKEN_KEY = "titan_access_token";
 const REFRESH_TOKEN_KEY = "titan_refresh_token";
 const REFRESHABLE_KEY = "titan_session_refreshable";
@@ -213,11 +215,11 @@ export const tokenStorage = {
     deleteCookie("gym_os_access");
     deleteCookie("gym_os_refresh");
 
-    // Clean legacy keys
-    for (const key of ["access_token", "access", "token", "refresh_token", "refresh"]) {
-      localStorage.removeItem(key);
-      deleteCookie(key);
-    }
+    localStorage.removeItem("titan_active_gym_id");
+    localStorage.removeItem("titan_active_gym_name");
+    try {
+      purgeLegacyGlobalStores();
+    } catch {}
 
     // Dispatch event so other components or tabs can react immediately
     window.dispatchEvent(new CustomEvent("titan:auth-logout"));

@@ -1,43 +1,83 @@
 /**
  * Persistent manager avatar storage & image compression helper
- * Ensures the gym manager's profile picture is never lost on logout or page refresh.
+ * Scoped strictly per-user to prevent avatar leakage across different gym managers.
  */
 
-export const MANAGER_AVATAR_KEY = "titan_manager_avatar";
-export const USER_AVATAR_LEGACY_KEY = "titan_user_avatar";
+import { isFlexGymOrFarooq } from "@/lib/session-scope";
+
 export const AVATAR_UPDATED_EVENT = "titan:avatar-updated";
 
 /**
- * Retrieve the saved avatar for the manager across persistent keys
+ * Retrieve the saved avatar for the manager strictly scoped to that user's identity
  */
 export function getSavedManagerAvatar(identifier?: string | null): string | null {
   if (typeof window === "undefined") return null;
   try {
-    if (identifier) {
-      const cleanId = String(identifier).trim().toLowerCase();
-      const specific = localStorage.getItem(`titan_avatar_${cleanId}`);
-      if (specific) return specific;
+    let cleanId = identifier ? String(identifier).trim().toLowerCase() : null;
+    let rawUserObj: any = null;
+    const rawUser = localStorage.getItem("titan_user");
+    if (rawUser) {
+      try {
+        rawUserObj = JSON.parse(rawUser);
+      } catch {}
     }
-    const managerAvatar = localStorage.getItem(MANAGER_AVATAR_KEY);
-    if (managerAvatar) return managerAvatar;
-    const userAvatar = localStorage.getItem(USER_AVATAR_LEGACY_KEY);
-    if (userAvatar) return userAvatar;
+
+    if (!cleanId && rawUserObj) {
+      cleanId = (rawUserObj.email || (rawUserObj.id ? String(rawUserObj.id) : null))?.trim().toLowerCase() || null;
+    }
+
+    const legacyGlobal = localStorage.getItem("titan_manager_avatar");
+    const isFarooq = isFlexGymOrFarooq(rawUserObj);
+
+    if (cleanId) {
+      const specific = localStorage.getItem(`titan_avatar_${cleanId}`);
+      if (specific) {
+        if (!isFarooq && legacyGlobal && specific === legacyGlobal) {
+          localStorage.removeItem(`titan_avatar_${cleanId}`);
+          return null;
+        }
+        return specific;
+      }
+    }
+
+    // If active user is Farooq / Flex manager, fall back to legacy global avatar
+    if (isFarooq && legacyGlobal) {
+      if (cleanId) {
+        localStorage.setItem(`titan_avatar_${cleanId}`, legacyGlobal);
+      }
+      return legacyGlobal;
+    }
   } catch {}
   return null;
 }
 
 /**
- * Persist the manager's avatar permanently in browser storage
+ * Persist the manager's avatar strictly in that specific manager's storage key
  */
 export function saveManagerAvatar(avatar: string, identifier?: string | null): void {
   if (typeof window === "undefined" || !avatar) return;
   try {
-    localStorage.setItem(MANAGER_AVATAR_KEY, avatar);
-    localStorage.setItem(USER_AVATAR_LEGACY_KEY, avatar);
-    if (identifier) {
-      const cleanId = String(identifier).trim().toLowerCase();
+    let cleanId = identifier ? String(identifier).trim().toLowerCase() : null;
+    let rawUserObj: any = null;
+    const rawUser = localStorage.getItem("titan_user");
+    if (rawUser) {
+      try {
+        rawUserObj = JSON.parse(rawUser);
+      } catch {}
+    }
+
+    if (!cleanId && rawUserObj) {
+      cleanId = (rawUserObj.email || (rawUserObj.id ? String(rawUserObj.id) : null))?.trim().toLowerCase() || null;
+    }
+
+    if (cleanId) {
       localStorage.setItem(`titan_avatar_${cleanId}`, avatar);
     }
+
+    if (isFlexGymOrFarooq(rawUserObj)) {
+      localStorage.setItem("titan_manager_avatar", avatar);
+    }
+
     window.dispatchEvent(new CustomEvent(AVATAR_UPDATED_EVENT, { detail: { avatar } }));
   } catch (err) {
     console.warn("Failed to persist manager avatar:", err);

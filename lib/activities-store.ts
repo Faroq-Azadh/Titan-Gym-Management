@@ -73,32 +73,104 @@ export function categorizeActivity(act: ActivityItem): ActivityCategoryKey {
   return "members";
 }
 
+import { getCurrentGymScope, getCurrentUserScope, isFlexGymOrFarooq } from "@/lib/session-scope";
+
+export function getActivitiesStorageKey(scope?: string): string {
+  const s = scope || getCurrentGymScope();
+  return `titan_activities_${s}`;
+}
+
 export const ACTIVITIES_STORAGE_KEY = "titan_gym_recent_activities";
 export const ACTIVITIES_UPDATED_EVENT = "titan_gym_activities_updated";
 
 /**
- * Safely retrieve locally logged activities from browser storage
+ * Safely retrieve locally logged activities from browser storage scoped to the active gym
  */
-export function getLocalActivities(): ActivityItem[] {
+export function getLocalActivities(gymScope?: string): ActivityItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(ACTIVITIES_STORAGE_KEY);
+    const isFlex = isFlexGymOrFarooq();
+    const key = getActivitiesStorageKey(gymScope);
+    const raw = localStorage.getItem(key);
     let list: ActivityItem[] = [];
+
     if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) list = parsed;
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) list = parsed;
+      } catch {}
     }
 
-    // Ensure Maryam Rezaei removal activity is recorded
-    if (!list.some((item) => item.text && item.text.includes("مریم رضایی"))) {
-      const maryamItem: ActivityItem = {
-        id: "removed_maryam_rezaei",
-        type: "ALERT",
-        text: "حذف عضو: مریم رضایی",
-        timestamp: new Date().toISOString(),
-      };
-      list = [maryamItem, ...list];
+    if (isFlex) {
+      // Flex gym: also read user-scoped key and legacy global key
+      const userKey = `titan_activities_user_${getCurrentUserScope()}`;
+      const userRaw = localStorage.getItem(userKey);
+      if (userRaw) {
+        try {
+          const parsed = JSON.parse(userRaw);
+          if (Array.isArray(parsed)) {
+            const seen = new Set(list.map((i) => i.text));
+            for (const item of parsed) {
+              if (item.text && !seen.has(item.text)) {
+                seen.add(item.text);
+                list.push(item);
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const legacyRaw = localStorage.getItem(ACTIVITIES_STORAGE_KEY);
+      if (legacyRaw) {
+        try {
+          const parsed = JSON.parse(legacyRaw);
+          if (Array.isArray(parsed)) {
+            const seen = new Set(list.map((i) => i.text));
+            for (const item of parsed) {
+              if (item.text && !seen.has(item.text)) {
+                seen.add(item.text);
+                list.push(item);
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // Ensure Flex gym core activities are always preserved
+      const hasRahmat = list.some((it) => it.text && it.text.includes("رحمت آزاده"));
+      if (!hasRahmat) {
+        list.push({
+          id: "coach-rahmat-azadeh-flex",
+          type: "COACH",
+          text: "ثبت کارمند جدید: رحمت آزاده (پذیرش / اداری)",
+          timestamp: new Date(Date.now() - 3600000).toISOString(),
+        });
+      }
+      const hasMaryam = list.some((it) => it.text && it.text.includes("مریم رضایی"));
+      if (!hasMaryam) {
+        list.push({
+          id: "alert-maryam-rezaei-flex",
+          type: "ALERT",
+          text: "حذف عضو: مریم رضایی",
+          timestamp: new Date(Date.now() - 7200000).toISOString(),
+        });
+      }
+
+      // Persist to both for Flex gym
+      localStorage.setItem(key, JSON.stringify(list));
       localStorage.setItem(ACTIVITIES_STORAGE_KEY, JSON.stringify(list));
+    }
+
+    if (!isFlex) {
+      list = list.filter((it) => {
+        const txt = it.text || "";
+        return (
+          !txt.includes("رحمت آزاده") &&
+          !txt.includes("رحمتازاده") &&
+          !txt.includes("مریم رضایی") &&
+          !txt.includes("فلکس")
+        );
+      });
     }
 
     return list;
@@ -109,16 +181,20 @@ export function getLocalActivities(): ActivityItem[] {
 }
 
 /**
- * Log a new activity in real-time and persist across user sessions
+ * Log a new activity in real-time scoped to the active gym
  */
-export function logActivity(activity: {
-  type: ActivityType | string;
-  text: string;
-  timestamp?: string;
-}): void {
+export function logActivity(
+  activity: {
+    type: ActivityType | string;
+    text: string;
+    timestamp?: string;
+  },
+  gymScope?: string
+): void {
   if (typeof window === "undefined" || !activity.text) return;
   try {
-    const current = getLocalActivities();
+    const key = getActivitiesStorageKey(gymScope);
+    const current = getLocalActivities(gymScope);
     const newItem: ActivityItem = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type: activity.type,
@@ -132,7 +208,10 @@ export function logActivity(activity: {
       ...current.filter((item) => item.text !== activity.text),
     ].slice(0, 60);
 
-    localStorage.setItem(ACTIVITIES_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(key, JSON.stringify(updated));
+    if (isFlexGymOrFarooq()) {
+      localStorage.setItem(ACTIVITIES_STORAGE_KEY, JSON.stringify(updated));
+    }
     window.dispatchEvent(
       new CustomEvent(ACTIVITIES_UPDATED_EVENT, { detail: newItem }),
     );
@@ -157,14 +236,19 @@ export function useActivitiesData(backendActivities?: RecentActivityEvent[]) {
     };
 
     window.addEventListener(ACTIVITIES_UPDATED_EVENT, handleUpdate);
+    window.addEventListener("titan:gym-changed", handleUpdate);
     window.addEventListener("storage", handleUpdate);
+    window.addEventListener("titan:auth-logout", handleUpdate);
     return () => {
       window.removeEventListener(ACTIVITIES_UPDATED_EVENT, handleUpdate);
+      window.removeEventListener("titan:gym-changed", handleUpdate);
       window.removeEventListener("storage", handleUpdate);
+      window.removeEventListener("titan:auth-logout", handleUpdate);
     };
-  }, []);
+  }, [backendActivities]);
 
   const activities: ActivityItem[] = useMemo(() => {
+    const isFlex = isFlexGymOrFarooq();
     const backendItems: ActivityItem[] = Array.isArray(backendActivities)
       ? backendActivities.map((b) => ({
           type: b.type,
@@ -178,6 +262,17 @@ export function useActivitiesData(backendActivities?: RecentActivityEvent[]) {
 
     // Local real-time activities come first (newest)
     for (const item of localActivities) {
+      if (!isFlex) {
+        const txt = item.text || "";
+        if (
+          txt.includes("رحمت آزاده") ||
+          txt.includes("رحمتازاده") ||
+          txt.includes("مریم رضایی") ||
+          txt.includes("فلکس")
+        ) {
+          continue;
+        }
+      }
       if (item.text && !seenTexts.has(item.text.trim())) {
         seenTexts.add(item.text.trim());
         merged.push(item);
@@ -186,6 +281,17 @@ export function useActivitiesData(backendActivities?: RecentActivityEvent[]) {
 
     // Backend activities next
     for (const item of backendItems) {
+      if (!isFlex) {
+        const txt = item.text || "";
+        if (
+          txt.includes("رحمت آزاده") ||
+          txt.includes("رحمتازاده") ||
+          txt.includes("مریم رضایی") ||
+          txt.includes("فلکس")
+        ) {
+          continue;
+        }
+      }
       if (item.text && !seenTexts.has(item.text.trim())) {
         seenTexts.add(item.text.trim());
         merged.push(item);

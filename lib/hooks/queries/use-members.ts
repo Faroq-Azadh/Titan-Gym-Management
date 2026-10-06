@@ -9,14 +9,17 @@ import {
 } from "@/lib/api/services/members.service";
 import { tokenStorage } from "@/lib/api/token";
 
+import { getCurrentUserScope } from "@/lib/session-scope";
+
 export function useMembers(params?: {
   status?: string;
   search?: string;
   page?: number;
   page_size?: number;
 }) {
+  const userScope = getCurrentUserScope();
   return useQuery<PaginatedMembersResponse, Error>({
-    queryKey: ["members", params],
+    queryKey: ["members", userScope, params],
     queryFn: () => membersService.getMembers(params),
     enabled: typeof window !== "undefined" && tokenStorage.hasValidSession(),
     staleTime: 30 * 1000,

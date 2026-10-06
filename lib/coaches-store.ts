@@ -49,61 +49,99 @@ export function getPhoneLookupKeys(phone?: string | null): string[] {
   return Array.from(keys);
 }
 
-export function getDeletedCoachIds(): string[] {
+export function getDeletedCoachIdsKey(scope?: string): string {
+  const s = scope || getCurrentGymScope();
+  return `titan_deleted_coaches_${s}`;
+}
+
+export function getDeletedCoachIds(scope?: string): string[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(DELETED_COACHES_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const key = getDeletedCoachIdsKey(scope);
+    const raw = localStorage.getItem(key);
+    if (raw) return JSON.parse(raw);
+    if (isFarooqUser()) {
+      const legacy = localStorage.getItem(DELETED_COACHES_KEY);
+      if (legacy) return JSON.parse(legacy);
+    }
+    return [];
   } catch {
     return [];
   }
 }
 
-export function addDeletedCoachId(id: string | number): void {
+export function addDeletedCoachId(id: string | number, scope?: string): void {
   if (typeof window === "undefined" || id === undefined || id === null) return;
   const strId = String(id);
   try {
-    const list = getDeletedCoachIds();
+    const key = getDeletedCoachIdsKey(scope);
+    const list = getDeletedCoachIds(scope);
     if (!list.includes(strId)) {
       list.push(strId);
-      localStorage.setItem(DELETED_COACHES_KEY, JSON.stringify(list));
+      localStorage.setItem(key, JSON.stringify(list));
+      window.dispatchEvent(new Event(COACHES_UPDATED_EVENT));
     }
   } catch { }
 }
 
-export function getLocalCoachOverrides(): Record<string, CoachOverride> {
+import {
+  getCurrentGymScope,
+  getCurrentUserScope,
+  isFarooqUser,
+  isFlexGymOrFarooq,
+} from "@/lib/session-scope";
+
+export function getLocalCoachOverridesKey(scope?: string): string {
+  const s = scope || getCurrentGymScope();
+  return `titan_coaches_overrides_${s}`;
+}
+
+export function getLocalCoachOverrides(scope?: string): Record<string, CoachOverride> {
   if (typeof window === "undefined") return {};
   try {
-    const saved = localStorage.getItem(COACHES_OVERRIDES_KEY);
-    return saved ? JSON.parse(saved) : {};
+    const key = getLocalCoachOverridesKey(scope);
+    const saved = localStorage.getItem(key);
+    if (saved) return JSON.parse(saved);
+    if (isFarooqUser()) {
+      const legacy = localStorage.getItem(COACHES_OVERRIDES_KEY);
+      if (legacy) return JSON.parse(legacy);
+    }
+    return {};
   } catch {
     return {};
   }
 }
 
-export function saveLocalCoachOverride(id: string | number, override: CoachOverride): void {
+export function saveLocalCoachOverride(id: string | number, override: CoachOverride, scope?: string): void {
   if (typeof window === "undefined" || !id) return;
   const strId = String(id);
   try {
-    const current = getLocalCoachOverrides();
+    const key = getLocalCoachOverridesKey(scope);
+    const current = getLocalCoachOverrides(scope);
     current[strId] = { ...(current[strId] || {}), ...override };
-    localStorage.setItem(COACHES_OVERRIDES_KEY, JSON.stringify(current));
+    localStorage.setItem(key, JSON.stringify(current));
     window.dispatchEvent(new Event(COACHES_UPDATED_EVENT));
   } catch { }
 }
 
-export function saveLocalCoachOverridesBatch(entries: Record<string, CoachOverride>): void {
+export function saveLocalCoachOverridesBatch(entries: Record<string, CoachOverride>, scope?: string): void {
   if (typeof window === "undefined") return;
   try {
-    const current = getLocalCoachOverrides();
-    for (const [key, val] of Object.entries(entries)) {
-      if (key) {
-        current[key] = { ...(current[key] || {}), ...val };
+    const key = getLocalCoachOverridesKey(scope);
+    const current = getLocalCoachOverrides(scope);
+    for (const [keyName, val] of Object.entries(entries)) {
+      if (keyName) {
+        current[keyName] = { ...(current[keyName] || {}), ...val };
       }
     }
-    localStorage.setItem(COACHES_OVERRIDES_KEY, JSON.stringify(current));
+    localStorage.setItem(key, JSON.stringify(current));
     window.dispatchEvent(new Event(COACHES_UPDATED_EVENT));
   } catch { }
+}
+
+export function getLocalTeamMembersKey(scope?: string): string {
+  const s = scope || getCurrentGymScope();
+  return `titan_team_${s}`;
 }
 
 export const LOCAL_TEAM_MEMBERS_KEY = "titan_gym_local_team_members";
@@ -128,25 +166,102 @@ export interface LocalTeamMember {
   address?: string;
   rating?: string;
   students?: string;
+  gym_scope?: string;
   [key: string]: any;
 }
 
-export function getLocalTeamMembers(): LocalTeamMember[] {
+export function getLocalTeamMembers(scope?: string): LocalTeamMember[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(LOCAL_TEAM_MEMBERS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const isFlex = isFlexGymOrFarooq();
+    const key = getLocalTeamMembersKey(scope);
+    const raw = localStorage.getItem(key);
+    let list: LocalTeamMember[] = [];
+
+    if (raw) {
+      try {
+        list = JSON.parse(raw);
+      } catch {}
+    }
+
+    if (isFlex) {
+      const userKey = `titan_team_user_${getCurrentUserScope()}`;
+      const userRaw = localStorage.getItem(userKey);
+      if (userRaw) {
+        try {
+          const parsed = JSON.parse(userRaw);
+          if (Array.isArray(parsed)) {
+            const seen = new Set(list.map((m) => String(m.id)));
+            for (const item of parsed) {
+              if (!seen.has(String(item.id))) {
+                seen.add(String(item.id));
+                list.push(item);
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const legacy = localStorage.getItem(LOCAL_TEAM_MEMBERS_KEY);
+      if (legacy) {
+        try {
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed)) {
+            const seen = new Set(list.map((m) => String(m.id)));
+            for (const item of parsed) {
+              if (!seen.has(String(item.id))) {
+                seen.add(String(item.id));
+                list.push(item);
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // Ensure Rahmat Azadeh is preserved in Flex gym
+      const hasRahmat = list.some(
+        (m) =>
+          normalizePersianName(m.name || m.full_name || "").includes("رحمتازاده") ||
+          normalizePersianName(m.name || m.full_name || "").includes("رحمت")
+      );
+      if (!hasRahmat) {
+        list.push({
+          id: "rahmat-azadeh-flex-staff",
+          first_name: "رحمت",
+          last_name: "آزاده",
+          full_name: "رحمت آزاده",
+          name: "رحمت آزاده",
+          phone: "۰۹۱۲۳۴۵۶۷۸۹",
+          position: "reception",
+          role: "پذیرش / اداری",
+          type: "staff",
+          specialties: ["پذیرش / اداری"],
+          is_active: true,
+          gym_scope: "flex",
+        });
+      }
+
+      localStorage.setItem(key, JSON.stringify(list));
+      localStorage.setItem(LOCAL_TEAM_MEMBERS_KEY, JSON.stringify(list));
+    }
+
+    return list;
   } catch {
     return [];
   }
 }
 
-export function saveLocalTeamMember(member: LocalTeamMember): void {
+export function saveLocalTeamMember(member: LocalTeamMember, scope?: string): void {
   if (typeof window === "undefined" || !member || !member.id) return;
   try {
-    const current = getLocalTeamMembers();
+    const key = getLocalTeamMembersKey(scope);
+    const current = getLocalTeamMembers(scope);
     const phoneNorm = normalizeDigits(member.phone || "").replace(/\D/g, "");
     const nameNorm = normalizePersianName(member.name || member.full_name || `${member.first_name || ""} ${member.last_name || ""}`);
+    const scopedMember = {
+      ...member,
+      gym_scope: member.gym_scope || scope || getCurrentGymScope(),
+    };
 
     const existingIndex = current.findIndex((m) => {
       if (String(m.id) === String(member.id)) return true;
@@ -158,22 +273,26 @@ export function saveLocalTeamMember(member: LocalTeamMember): void {
     });
 
     if (existingIndex >= 0) {
-      current[existingIndex] = { ...current[existingIndex], ...member };
+      current[existingIndex] = { ...current[existingIndex], ...scopedMember };
     } else {
-      current.push(member);
+      current.push(scopedMember);
     }
-    localStorage.setItem(LOCAL_TEAM_MEMBERS_KEY, JSON.stringify(current));
+    localStorage.setItem(key, JSON.stringify(current));
+    if (isFlexGymOrFarooq()) {
+      localStorage.setItem(LOCAL_TEAM_MEMBERS_KEY, JSON.stringify(current));
+    }
     window.dispatchEvent(new Event(COACHES_UPDATED_EVENT));
   } catch { }
 }
 
-export function removeLocalTeamMember(id: string | number): void {
+export function removeLocalTeamMember(id: string | number, scope?: string): void {
   if (typeof window === "undefined" || id === undefined || id === null) return;
   const strId = String(id);
   try {
-    const current = getLocalTeamMembers();
+    const key = getLocalTeamMembersKey(scope);
+    const current = getLocalTeamMembers(scope);
     const filtered = current.filter((m) => String(m.id) !== strId);
-    localStorage.setItem(LOCAL_TEAM_MEMBERS_KEY, JSON.stringify(filtered));
+    localStorage.setItem(key, JSON.stringify(filtered));
     window.dispatchEvent(new Event(COACHES_UPDATED_EVENT));
   } catch { }
 }
@@ -240,16 +359,22 @@ export function useCoachesData() {
 
   const [overrides, setOverrides] = useState<Record<string, CoachOverride>>(() => getLocalCoachOverrides());
   const [deletedIds, setDeletedIds] = useState<string[]>(() => getDeletedCoachIds());
+  const [localTeam, setLocalTeam] = useState<LocalTeamMember[]>(() => getLocalTeamMembers());
 
   useEffect(() => {
     const handleSync = () => {
       setOverrides(getLocalCoachOverrides());
       setDeletedIds(getDeletedCoachIds());
+      setLocalTeam(getLocalTeamMembers());
     };
     window.addEventListener(COACHES_UPDATED_EVENT, handleSync);
+    window.addEventListener("titan:gym-changed", handleSync);
+    window.addEventListener("titan:auth-logout", handleSync);
     window.addEventListener("storage", handleSync);
     return () => {
       window.removeEventListener(COACHES_UPDATED_EVENT, handleSync);
+      window.removeEventListener("titan:gym-changed", handleSync);
+      window.removeEventListener("titan:auth-logout", handleSync);
       window.removeEventListener("storage", handleSync);
     };
   }, []);
@@ -271,7 +396,6 @@ export function useCoachesData() {
     }
 
     const seenIds = new Set(list.map((c: any) => String(c.id)));
-    const localTeam = getLocalTeamMembers();
     for (const lm of localTeam) {
       if (!seenIds.has(String(lm.id))) {
         seenIds.add(String(lm.id));
@@ -279,7 +403,7 @@ export function useCoachesData() {
       }
     }
     return list;
-  }, [coachesData, overrides]);
+  }, [coachesData, overrides, localTeam]);
 
   // Compute non-deleted coaches/staff
   const teamItems = useMemo(() => {

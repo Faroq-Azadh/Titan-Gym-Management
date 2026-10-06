@@ -9,12 +9,15 @@ import {
 } from "@/lib/api/services/coaches.service";
 import { tokenStorage } from "@/lib/api/token";
 
+import { getCurrentUserScope } from "@/lib/session-scope";
+
 export function useCoaches() {
+  const userScope = getCurrentUserScope();
   return useQuery<CoachesResponse | CoachItem[], Error>({
-    queryKey: ["coaches"],
+    queryKey: ["coaches", userScope],
     queryFn: () => coachesService.getCoaches(),
     enabled: typeof window !== "undefined" && tokenStorage.hasValidSession(),
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000,
   });
 }
 

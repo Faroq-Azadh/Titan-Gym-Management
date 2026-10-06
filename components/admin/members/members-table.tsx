@@ -96,6 +96,7 @@ import {
   Camera,
 } from "lucide-react";
 import {
+  getLocalMemberOverrides,
   saveLocalMemberOverride,
   saveLocalMemberOverridesBatch,
   getPhoneLookupKeys,
@@ -366,26 +367,23 @@ export function MembersTable({
   React.useEffect(() => {
     const handleSync = () => {
       try {
-        const saved = localStorage.getItem("titan_gym_members_overrides");
-        if (saved) setLocalOverrides(JSON.parse(saved));
+        setLocalOverrides(getLocalMemberOverrides());
       } catch { }
     };
     window.addEventListener(MEMBERS_UPDATED_EVENT, handleSync);
+    window.addEventListener("titan:gym-changed", handleSync);
+    window.addEventListener("titan:auth-logout", handleSync);
     window.addEventListener("storage", handleSync);
     return () => {
       window.removeEventListener(MEMBERS_UPDATED_EVENT, handleSync);
+      window.removeEventListener("titan:gym-changed", handleSync);
+      window.removeEventListener("titan:auth-logout", handleSync);
       window.removeEventListener("storage", handleSync);
     };
   }, []);
 
   const [localOverrides, setLocalOverrides] = useState<Record<string, MemberOverride>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("titan_gym_members_overrides");
-        if (saved) return JSON.parse(saved);
-      } catch { }
-    }
-    return {};
+    return getLocalMemberOverrides();
   });
 
   const members: MemberItem[] = useMemo(() => {
