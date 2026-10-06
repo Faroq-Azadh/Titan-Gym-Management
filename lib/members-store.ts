@@ -11,6 +11,7 @@ export interface MemberOverride {
   dueDate?: string;
   email?: string;
   phone?: string;
+  avatar?: string;
 }
 
 export interface UnifiedMember {
@@ -27,6 +28,7 @@ export interface UnifiedMember {
   dueDate: string;
   startDateIso?: string;
   isActive: boolean;
+  avatar?: string;
 }
 
 export interface MemberCounts {
@@ -39,6 +41,37 @@ export interface MemberCounts {
 
 export const MEMBERS_OVERRIDES_KEY = "titan_gym_members_overrides";
 export const MEMBERS_UPDATED_EVENT = "titan_gym_members_updated";
+
+export function normalizePersianName(name?: string | null): string {
+  if (!name) return "";
+  return name
+    .trim()
+    .replace(/[\u200c\u200b\s]+/g, "")
+    .replace(/[ي]/g, "ی")
+    .replace(/[ك]/g, "ک")
+    .replace(/[آأإ]/g, "ا")
+    .toLowerCase();
+}
+
+export function getPhoneLookupKeys(phone?: string | null): string[] {
+  if (!phone) return [];
+  const digits = phone
+    .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
+    .replace(/[^\d]/g, "");
+  if (!digits) return [];
+  const keys = [digits];
+  if (digits.startsWith("98") && digits.length >= 11) {
+    keys.push("0" + digits.slice(2));
+    keys.push(digits.slice(2));
+  } else if (digits.startsWith("0") && digits.length >= 10) {
+    keys.push("98" + digits.slice(1));
+    keys.push(digits.slice(1));
+  }
+  if (digits.length >= 9) {
+    keys.push("suffix_" + digits.slice(-9));
+  }
+  return Array.from(new Set(keys));
+}
 
 /**
  * Safely retrieve local member overrides from browser storage
@@ -65,6 +98,25 @@ export function saveLocalMemberOverride(id: string, override: MemberOverride): v
     window.dispatchEvent(new CustomEvent(MEMBERS_UPDATED_EVENT, { detail: { id, override } }));
   } catch (err) {
     console.error("Failed to save member override:", err);
+  }
+}
+
+/**
+ * Save multiple overrides in a single atomic storage write
+ */
+export function saveLocalMemberOverridesBatch(entries: Record<string, MemberOverride>): void {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getLocalMemberOverrides();
+    for (const [key, val] of Object.entries(entries)) {
+      if (key) {
+        current[key] = { ...current[key], ...val };
+      }
+    }
+    localStorage.setItem(MEMBERS_OVERRIDES_KEY, JSON.stringify(current));
+    window.dispatchEvent(new CustomEvent(MEMBERS_UPDATED_EVENT, { detail: entries }));
+  } catch (err) {
+    console.error("Failed to batch save member overrides:", err);
   }
 }
 
@@ -150,13 +202,32 @@ export function useMembersData(search?: string) {
     return rawList
       .map((m: any, idx: number) => {
         const memberId = String(m.id);
-        const override = overrides[memberId] || {};
-
         const fullName =
           m.full_name ||
           `${m.first_name || ""} ${m.last_name || ""}`.trim() ||
           m.name ||
           "ورزشکار";
+
+        const rawPhone = m.phone_number || m.phone || "";
+        const phoneKeys = getPhoneLookupKeys(rawPhone);
+        const normName = normalizePersianName(fullName);
+
+        let override: MemberOverride = overrides[memberId] || {};
+        for (const pk of phoneKeys) {
+          if (overrides[`phone_${pk}`]) {
+            override = { ...overrides[`phone_${pk}`], ...override };
+            break;
+          }
+        }
+        if (overrides[`name_${fullName}`]) {
+          override = { ...overrides[`name_${fullName}`], ...override };
+        }
+        if (overrides[`normname_${normName}`]) {
+          override = { ...overrides[`normname_${normName}`], ...override };
+        }
+        if (overrides[memberId]) {
+          override = { ...overrides[memberId], ...override };
+        }
 
         const plan =
           override.plan ||
@@ -215,6 +286,7 @@ export function useMembersData(search?: string) {
           dueDate,
           startDateIso: m.start_date || m.created_at || "",
           isActive: m.is_active !== false,
+          avatar: override.avatar || m.avatar || m.profile_picture || m.photo || m.image || undefined,
         };
       });
   }, [membersResponse, overrides]);

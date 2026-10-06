@@ -15,6 +15,7 @@ export interface MemberItem {
   dueDate: string;
   email?: string;
   phone?: string;
+  avatar?: string;
 }
 
 
@@ -87,9 +88,13 @@ import {
   Dumbbell,
   ShieldCheck,
   Check,
+  Camera,
 } from "lucide-react";
 import {
   saveLocalMemberOverride,
+  saveLocalMemberOverridesBatch,
+  getPhoneLookupKeys,
+  normalizePersianName,
   deriveMemberStatus,
   MEMBERS_UPDATED_EVENT,
   type MemberOverride,
@@ -367,12 +372,32 @@ export function MembersTable({
     return list
       .filter((m: any) => m.is_active !== false)
       .map((m: any, idx: number) => {
-        const override = localOverrides[String(m.id)] || {};
         const fullName =
           m.full_name ||
           `${m.first_name || ""} ${m.last_name || ""}`.trim() ||
           m.name ||
           "ورزشکار";
+
+        const rawPhone = m.phone_number || m.phone || "";
+        const phoneKeys = getPhoneLookupKeys(rawPhone);
+        const normName = normalizePersianName(fullName);
+
+        let override: MemberOverride = localOverrides[String(m.id)] || {};
+        for (const pk of phoneKeys) {
+          if (localOverrides[`phone_${pk}`]) {
+            override = { ...localOverrides[`phone_${pk}`], ...override };
+            break;
+          }
+        }
+        if (localOverrides[`name_${fullName}`]) {
+          override = { ...localOverrides[`name_${fullName}`], ...override };
+        }
+        if (localOverrides[`normname_${normName}`]) {
+          override = { ...localOverrides[`normname_${normName}`], ...override };
+        }
+        if (localOverrides[String(m.id)]) {
+          override = { ...localOverrides[String(m.id)], ...override };
+        }
 
         const dueDate =
           override.dueDate ||
@@ -412,6 +437,7 @@ export function MembersTable({
           dueDate,
           email: override.email || m.email || "",
           phone: override.phone || m.phone_number || "",
+          avatar: override.avatar || m.avatar || m.profile_picture || m.photo || m.image || undefined,
         };
       });
   }, [membersResponse, localOverrides]);
@@ -426,6 +452,7 @@ export function MembersTable({
     last_name: string;
     phone_number: string;
     email: string;
+    avatar: string;
     start_date: string;
     membership_plan_id: string;
     assigned_coach_id: string;
@@ -442,6 +469,7 @@ export function MembersTable({
     last_name: "",
     phone_number: "",
     email: "",
+    avatar: "",
     start_date: getTodayIso(),
     membership_plan_id: "",
     assigned_coach_id: "",
@@ -463,7 +491,51 @@ export function MembersTable({
     dueDate: "",
     status: "active" as MemberItem["status"],
     email: "",
+    avatar: "",
   });
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined") {
+        resolve("");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const maxDim = 320;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL("image/jpeg", 0.85));
+          } else {
+            resolve(e.target?.result as string);
+          }
+        };
+        img.onerror = () => resolve(e.target?.result as string);
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    });
+  };
 
   const [showExtraDetails, setShowExtraDetails] = useState(false);
 
@@ -537,6 +609,7 @@ export function MembersTable({
       dueDate: member.dueDate,
       status: member.status,
       email: member.email || "",
+      avatar: member.avatar || "",
     });
   };
 
@@ -575,17 +648,33 @@ export function MembersTable({
         await queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
       }
 
-      const updatedOverride = {
+      const updatedOverride: MemberOverride = {
         plan: editFormData.plan,
         coach: chosenCoach || "بدون مربی",
         status: editFormData.status,
         joinDate: editFormData.joinDate,
         dueDate: editFormData.dueDate,
         email: editFormData.email?.trim() || undefined,
+        avatar: editFormData.avatar?.trim() || undefined,
       };
 
-      saveLocalMemberOverride(editingMember.id, updatedOverride);
-      setLocalOverrides((prev) => ({ ...prev, [editingMember.id]: updatedOverride }));
+      const editNormName = normalizePersianName(editFormData.name);
+      const editPhoneKeys = getPhoneLookupKeys(editingMember.phone);
+      const editBatch: Record<string, MemberOverride> = {
+        [editingMember.id]: updatedOverride,
+        [`name_${editFormData.name.trim()}`]: updatedOverride,
+        [`name_${editingMember.name}`]: updatedOverride,
+        [`normname_${editNormName}`]: updatedOverride,
+      };
+      for (const pk of editPhoneKeys) {
+        editBatch[`phone_${pk}`] = updatedOverride;
+      }
+      saveLocalMemberOverridesBatch(editBatch);
+
+      setLocalOverrides((prev) => ({
+        ...prev,
+        ...editBatch,
+      }));
 
       logActivity({
         type: "EDIT",
@@ -648,24 +737,86 @@ export function MembersTable({
     };
 
     try {
-      const created = await createMemberMutation.mutateAsync(payload);
+      const memberFullName = `${formData.first_name.trim()} ${formData.last_name.trim()}`;
+      const normName = normalizePersianName(memberFullName);
+      const phoneKeys = getPhoneLookupKeys(rawPhone);
+      const avatarData = formData.avatar?.trim() || undefined;
 
-      // Invalidate and refetch immediately so real Django UUID and member data are loaded
+      const selectedPlanObj = planOptions.find((p) => p.id === formData.membership_plan_id);
+      const planName = selectedPlanObj ? selectedPlanObj.name : "ماهانه";
+      const chosenCoachObj = coachOptions.find((c) => c.id === formData.assigned_coach_id);
+      const coachName = chosenCoachObj ? chosenCoachObj.name : "بدون مربی";
+
+      const newOverride: MemberOverride = {
+        plan: planName,
+        coach: coachName,
+        email: formData.email.trim() || undefined,
+        phone: rawPhone || undefined,
+        avatar: avatarData,
+        status: "active",
+      };
+
+      const batchToSave: Record<string, MemberOverride> = {
+        [`name_${memberFullName}`]: newOverride,
+        [`normname_${normName}`]: newOverride,
+      };
+      for (const pk of phoneKeys) {
+        batchToSave[`phone_${pk}`] = newOverride;
+      }
+
+      // 1. Immediately persist and update local state
+      saveLocalMemberOverridesBatch(batchToSave);
+      setLocalOverrides((prev) => ({
+        ...prev,
+        ...batchToSave,
+      }));
+
+      // 2. Submit to Django API
+      const created = await createMemberMutation.mutateAsync(payload);
+      const createdId = (created as any)?.id || (created as any)?.data?.id || (created as any)?.member?.id;
+      const effectiveId = createdId ? String(createdId) : "";
+
+      if (effectiveId) {
+        saveLocalMemberOverride(effectiveId, newOverride);
+        setLocalOverrides((prev) => ({ ...prev, [effectiveId]: newOverride }));
+      }
+
+      // 3. Invalidate and refetch immediately so real Django UUID and member data are loaded
       await queryClient.invalidateQueries({ queryKey: ["members"] });
       await queryClient.refetchQueries({ queryKey: ["members"] });
       await queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
 
-      if (created && (created as any).id) {
-        saveLocalMemberOverride(String((created as any).id), {
-          email: formData.email.trim() || undefined,
-          phone: rawPhone || undefined,
-          status: "active",
+      // 4. Resolve the newly created member from the fresh cache query data and bind the ID override
+      try {
+        const freshData: any = queryClient.getQueryData(["members"]);
+        const freshList: any[] = Array.isArray(freshData)
+          ? freshData
+          : Array.isArray(freshData?.results)
+            ? freshData.results
+            : Array.isArray(freshData?.members)
+              ? freshData.members
+              : [];
+
+        const foundMember = freshList.find((m: any) => {
+          if (effectiveId && String(m.id) === effectiveId) return true;
+          const mName = m.full_name || `${m.first_name || ""} ${m.last_name || ""}`.trim() || m.name || "";
+          if (normalizePersianName(mName) === normName) return true;
+          const mPhoneKeys = getPhoneLookupKeys(m.phone_number || m.phone);
+          if (phoneKeys.some((k) => mPhoneKeys.includes(k))) return true;
+          return false;
         });
+
+        if (foundMember && foundMember.id) {
+          saveLocalMemberOverride(String(foundMember.id), newOverride);
+          setLocalOverrides((prev) => ({
+            ...prev,
+            [String(foundMember.id)]: newOverride,
+          }));
+        }
+      } catch (e) {
+        console.error("Failed to associate fresh member id:", e);
       }
 
-      const selectedPlanObj = planOptions.find((p) => p.id === formData.membership_plan_id);
-      const planName = selectedPlanObj ? selectedPlanObj.name : "پلن ورزشی";
-      const memberFullName = `${formData.first_name.trim()} ${formData.last_name.trim()}`;
       logActivity({
         type: "MEMBER",
         text: `ثبت‌نام عضو جدید: ${memberFullName} (${planName})`,
@@ -677,6 +828,7 @@ export function MembersTable({
         last_name: "",
         phone_number: "",
         email: "",
+        avatar: "",
         start_date: getTodayIso(),
         membership_plan_id: "",
         assigned_coach_id: "",
@@ -843,12 +995,20 @@ export function MembersTable({
                     >
                       <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
                         <div className="flex items-center gap-[11px]">
-                          <span
-                            className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-bold text-white shadow-xs"
-                            style={{ backgroundColor: avatarColor }}
-                          >
-                            {getInitials(item.name)}
-                          </span>
+                          {item.avatar ? (
+                            <img
+                              src={item.avatar}
+                              alt={item.name}
+                              className="h-[36px] w-[36px] shrink-0 rounded-[10px] object-cover shadow-xs border border-border"
+                            />
+                          ) : (
+                            <span
+                              className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-bold text-white shadow-xs"
+                              style={{ backgroundColor: avatarColor }}
+                            >
+                              {getInitials(item.name)}
+                            </span>
+                          )}
                           <div>
                             <div className="text-[13.5px] font-bold text-ink">
                               {item.name}
@@ -1034,6 +1194,54 @@ export function MembersTable({
               </button>
             </div>
             <form onSubmit={handleSaveEdit} className="flex flex-col gap-[14px]">
+              {/* Profile Picture in Edit Modal */}
+              <div className="flex items-center gap-[14px] rounded-[14px] border border-dashed border-border bg-bg/50 p-[12px]">
+                <div className="relative shrink-0">
+                  <div className="flex h-[56px] w-[56px] items-center justify-center overflow-hidden rounded-[14px] border-2 border-border bg-surface shadow-2xs">
+                    {editFormData.avatar ? (
+                      <img
+                        src={editFormData.avatar}
+                        alt={editFormData.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-[24px] w-[24px] text-ink-faint" />
+                    )}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12.5px] font-bold text-ink">تصویر پروفایل</div>
+                  <div className="mt-[4px] flex items-center gap-[8px]">
+                    <label className="inline-flex cursor-pointer items-center gap-[5px] rounded-[8px] bg-surface border border-border px-[10px] py-[4px] text-[11.5px] font-bold text-ink shadow-2xs hover:border-primary hover:bg-tint hover:text-primary-dark transition-all">
+                      <Camera className="h-[13px] w-[13px]" />
+                      <span>{editFormData.avatar ? "تغییر تصویر" : "افزودن تصویر"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const dataUrl = await compressImage(file);
+                            setEditFormData((prev) => ({ ...prev, avatar: dataUrl }));
+                          } catch {}
+                        }}
+                      />
+                    </label>
+                    {editFormData.avatar && (
+                      <button
+                        type="button"
+                        onClick={() => setEditFormData((prev) => ({ ...prev, avatar: "" }))}
+                        className="text-[11px] font-bold text-[#E11D48] hover:underline cursor-pointer"
+                      >
+                        حذف
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="mb-[6px] block text-[13px] font-bold text-ink">
                   نام و نام خانوادگی
@@ -1228,6 +1436,74 @@ export function MembersTable({
             )}
 
             <form onSubmit={handleSaveNew} className="flex flex-col gap-[14px]">
+              {/* Profile Picture Upload Section */}
+              <div className="flex items-center gap-[16px] rounded-[14px] border border-dashed border-border bg-bg/50 p-[14px] transition-colors hover:border-primary/50">
+                <div className="relative group shrink-0">
+                  <div className="relative flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-[18px] border-2 border-border bg-surface shadow-xs">
+                    {formData.avatar ? (
+                      <img
+                        src={formData.avatar}
+                        alt="تصویر پروفایل عضو"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-ink-faint">
+                        <User className="h-[28px] w-[28px]" />
+                      </div>
+                    )}
+                  </div>
+                  {formData.avatar && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, avatar: "" }))}
+                      className="absolute -top-[6px] -left-[6px] flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#E11D48] text-white shadow-xs transition-transform hover:scale-110 cursor-pointer"
+                      title="حذف تصویر"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-bold text-ink">
+                    تصویر پروفایل عضو
+                  </div>
+                  <div className="mt-[2px] text-[11.5px] text-ink-faint">
+                    فرمت‌های JPG، PNG یا WEBP (اختیاری)
+                  </div>
+                  <div className="mt-[8px] flex items-center gap-[8px]">
+                    <label className="inline-flex cursor-pointer items-center gap-[6px] rounded-[9px] bg-surface border border-border px-[11px] py-[5px] text-[12px] font-bold text-ink shadow-2xs transition-all hover:border-primary hover:bg-tint hover:text-primary-dark">
+                      <Camera className="h-[14px] w-[14px]" />
+                      <span>{formData.avatar ? "تغییر تصویر" : "بارگذاری تصویر"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const dataUrl = await compressImage(file);
+                            setFormData((prev) => ({ ...prev, avatar: dataUrl }));
+                          } catch (err) {
+                            console.error("Failed to load image:", err);
+                          }
+                        }}
+                      />
+                    </label>
+                    {formData.avatar && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, avatar: "" }))}
+                        className="text-[11.5px] font-bold text-[#E11D48] hover:underline cursor-pointer"
+                      >
+                        حذف
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* First Name & Last Name */}
               <div className="grid grid-cols-1 gap-[12px] sm:grid-cols-2">
                 <div>

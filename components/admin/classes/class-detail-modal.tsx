@@ -141,7 +141,7 @@ export function ClassDetailModal({
     const newClassMember: ClassMember = {
       id: gymMember.id || `m_${Date.now()}`,
       name: gymMember.fullName || gymMember.name || "ورزشکار",
-      avatar: getInitials(gymMember.fullName || gymMember.name || "ور"),
+      avatar: gymMember.avatar || getInitials(gymMember.fullName || gymMember.name || "ور"),
       phone: gymMember.phone || "—",
       joinedDate: getTodayJalaliString(),
       status: "active",
@@ -616,9 +616,17 @@ export function ClassDetailModal({
                     className="flex items-center justify-between p-[10px_16px] transition-colors hover:bg-bg/40"
                   >
                     <div className="flex items-center gap-[10px]">
-                      <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-tint text-[11.5px] font-extrabold text-primary-dark">
-                        {member.avatar || getInitials(member.name)}
-                      </span>
+                      {member.avatar && member.avatar.startsWith("data:") ? (
+                        <img
+                          src={member.avatar}
+                          alt={member.name}
+                          className="h-[34px] w-[34px] rounded-full object-cover border border-border"
+                        />
+                      ) : (
+                        <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-tint text-[11.5px] font-extrabold text-primary-dark">
+                          {member.avatar || getInitials(member.name)}
+                        </span>
+                      )}
                       <div>
                         <div className="text-[13px] font-bold text-ink">
                           {member.name}

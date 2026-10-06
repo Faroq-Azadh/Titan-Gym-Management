@@ -24,6 +24,10 @@ export interface MemberListItem {
   created_at?: string;
   days_left?: number;
   is_active?: boolean;
+  avatar?: string | null;
+  profile_picture?: string | null;
+  photo?: string | null;
+  image?: string | null;
 }
 
 export interface PaginatedMembersResponse {
@@ -39,6 +43,7 @@ export interface CreateMemberPayload {
   start_date: string;
   phone_number?: string;
   email?: string;
+  avatar?: string | null;
   gender?: "MALE" | "FEMALE" | "";
   date_of_birth?: string | null;
   address?: string;

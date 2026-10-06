@@ -20,6 +20,59 @@ export interface ActivityItem {
   timestamp: string;
 }
 
+export type ActivityCategoryKey = "all" | "members" | "coaches" | "classes" | "edits" | "alerts";
+
+export interface ActivityCategoryConfig {
+  id: ActivityCategoryKey;
+  label: string;
+}
+
+export const ACTIVITY_CATEGORIES: ActivityCategoryConfig[] = [
+  { id: "all", label: "همه فعالیت‌ها" },
+  { id: "members", label: "ثبت‌نام اعضا" },
+  { id: "coaches", label: "مربیان" },
+  { id: "classes", label: "کلاس‌ها و تکمیل ظرفیت" },
+  { id: "edits", label: "ویرایش‌ها" },
+  { id: "alerts", label: "حذف و هشدارها" },
+];
+
+export function categorizeActivity(act: ActivityItem): ActivityCategoryKey {
+  const t = (act.type || "").toUpperCase();
+  const text = act.text || "";
+
+  if (t === "COACH" || text.includes("مربی")) {
+    return "coaches";
+  }
+  if (
+    t === "CLASS" ||
+    t === "FULL" ||
+    t === "TRAINING" ||
+    text.includes("کلاس") ||
+    text.includes("ظرفیت") ||
+    text.includes("سانس") ||
+    text.includes("رزرو")
+  ) {
+    return "classes";
+  }
+  if (t === "EDIT" || text.includes("ویرایش") || text.includes("تغییر")) {
+    return "edits";
+  }
+  if (
+    t === "ALERT" ||
+    t === "WARNING" ||
+    text.includes("حذف") ||
+    text.includes("هشدار") ||
+    text.includes("لغو") ||
+    text.includes("اخراج")
+  ) {
+    return "alerts";
+  }
+  if (t === "MEMBER" || text.includes("عضو") || text.includes("ورزشکار") || text.includes("تمدید")) {
+    return "members";
+  }
+  return "members";
+}
+
 export const ACTIVITIES_STORAGE_KEY = "titan_gym_recent_activities";
 export const ACTIVITIES_UPDATED_EVENT = "titan_gym_activities_updated";
 

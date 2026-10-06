@@ -160,12 +160,20 @@ export function RecentMembersTable({ members: propMembers, isLoading: propLoadin
                   >
                     <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
                       <div className="flex items-center gap-[11px]">
-                        <span
-                          className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-bold text-white"
-                          style={{ background: gradient }}
-                        >
-                          {initials}
-                        </span>
+                        {(member as any).avatar ? (
+                          <img
+                            src={(member as any).avatar}
+                            alt={member.full_name}
+                            className="h-[36px] w-[36px] shrink-0 rounded-[10px] object-cover shadow-xs border border-border"
+                          />
+                        ) : (
+                          <span
+                            className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-bold text-white"
+                            style={{ background: gradient }}
+                          >
+                            {initials}
+                          </span>
+                        )}
                         <div>
                           <div className="text-[13.5px] font-bold text-ink">
                             {member.full_name}

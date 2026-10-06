@@ -1,13 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
-import { useActivitiesData } from "@/lib/activities-store";
+import {
+  useActivitiesData,
+  categorizeActivity,
+  ACTIVITY_CATEGORIES,
+  type ActivityCategoryKey,
+} from "@/lib/activities-store";
+import { toPersianDigits } from "@/lib/persian-digits";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Activity, Calendar, RefreshCw } from "lucide-react";
+import { ArrowRight, Activity, Calendar, RefreshCw, Search } from "lucide-react";
 
 function getRelativeTime(timestamp: string): string {
   if (!timestamp) return "به تازگی";
@@ -187,19 +193,41 @@ function getActivityConfig(type: string) {
 
 export default function AdminActivitiesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [filter, setFilter] = useState<string>("all");
+  const [filter, setFilter] = useState<ActivityCategoryKey>("all");
+  const [search, setSearch] = useState("");
   const { data: dashboard, isLoading: isDashboardLoading, refetch } = useOwnerDashboard();
   const { activities } = useActivitiesData(dashboard?.recent_activity);
 
-  const filteredActivities = activities.filter((act) => {
-    if (filter === "all") return true;
-    const typeUpper = (act.type || "").toUpperCase();
-    if (filter === "members") return typeUpper === "MEMBER";
-    if (filter === "coaches") return typeUpper === "COACH";
-    if (filter === "classes") return typeUpper === "CLASS" || typeUpper === "FULL";
-    if (filter === "edits") return typeUpper === "EDIT";
-    return true;
-  });
+  const categoryCounts = useMemo(() => {
+    const counts: Record<ActivityCategoryKey, number> = {
+      all: activities.length,
+      members: 0,
+      coaches: 0,
+      classes: 0,
+      edits: 0,
+      alerts: 0,
+    };
+    for (const act of activities) {
+      const cat = categorizeActivity(act);
+      if (counts[cat] !== undefined) {
+        counts[cat]++;
+      }
+    }
+    return counts;
+  }, [activities]);
+
+  const filteredActivities = useMemo(() => {
+    return activities.filter((act) => {
+      if (filter !== "all") {
+        const cat = categorizeActivity(act);
+        if (cat !== filter) return false;
+      }
+      if (search.trim()) {
+        return act.text.toLowerCase().includes(search.trim().toLowerCase());
+      }
+      return true;
+    });
+  }, [activities, filter, search]);
 
   return (
     <div className="flex min-h-screen bg-bg text-ink">
@@ -225,7 +253,7 @@ export default function AdminActivitiesPage() {
                 گزارش جامع فعالیت‌های پنل
               </h1>
               <p className="mt-[4px] text-[13.5px] text-ink-faint">
-                ثبت کلیه وقایع، ثبت‌نام اعضا و مربیان، تغییرات کلاس‌ها و ویرایش‌ها
+                ثبت کلیه وقایع، ثبت‌نام اعضا و مربیان، تغییرات کلاس‌ها، ویرایش‌ها و هشدارها
               </p>
             </div>
 
@@ -233,7 +261,7 @@ export default function AdminActivitiesPage() {
               <button
                 type="button"
                 onClick={() => refetch()}
-                className="flex items-center gap-[6px] rounded-[10px] border border-border bg-surface px-[13px] py-[8px] text-[13px] font-bold text-ink shadow-xs transition-colors hover:bg-bg"
+                className="flex items-center gap-[6px] rounded-[10px] border border-border bg-surface px-[13px] py-[8px] text-[13px] font-bold text-ink shadow-xs transition-colors hover:bg-bg cursor-pointer"
               >
                 <RefreshCw className="h-[14px] w-[14px]" />
                 بروزرسانی
@@ -241,29 +269,57 @@ export default function AdminActivitiesPage() {
             </div>
           </div>
 
-          {/* Filter Pills */}
-          <div className="mb-[18px] flex flex-wrap gap-[6px]">
-            {[
-              { id: "all", label: "همه فعالیت‌ها" },
-              { id: "members", label: "ثبت‌نام اعضا" },
-              { id: "coaches", label: "مربیان" },
-              { id: "classes", label: "کلاس‌ها و تکمیل ظرفیت" },
-              { id: "edits", label: "ویرایش‌ها" },
-            ].map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setFilter(f.id)}
-                className={cn(
-                  "cursor-pointer rounded-[9px] px-[14px] py-[7px] text-[12.5px] font-bold transition-all",
-                  filter === f.id
-                    ? "bg-surface text-ink border border-border shadow-xs"
-                    : "text-ink-faint hover:text-ink hover:bg-surface/50",
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
+          {/* Filter Pills with Counts and Search */}
+          <div className="mb-[18px] flex flex-col gap-[12px] min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between">
+            <div className="flex flex-wrap gap-[6px]">
+              {ACTIVITY_CATEGORIES.map((f) => {
+                const count = categoryCounts[f.id] || 0;
+                const isSelected = filter === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFilter(f.id)}
+                    className={cn(
+                      "cursor-pointer flex items-center gap-[6px] rounded-[10px] px-[13px] py-[7px] text-[12.5px] font-bold transition-all",
+                      isSelected
+                        ? "bg-surface text-ink border border-border shadow-xs text-primary-dark font-extrabold"
+                        : "text-ink-faint hover:text-ink hover:bg-surface/50",
+                    )}
+                  >
+                    <span>{f.label}</span>
+                    <span
+                      className={cn(
+                        "rounded-full px-[6px] py-[1px] text-[11px] font-bold",
+                        isSelected ? "bg-tint text-primary-dark" : "bg-bg text-ink-faint",
+                      )}
+                    >
+                      {toPersianDigits(count)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative flex items-center min-w-[240px]">
+              <Search className="absolute right-[12px] h-[15px] w-[15px] text-ink-faint" />
+              <input
+                type="text"
+                placeholder="جستجو در وقایع..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full rounded-[10px] border border-border bg-surface pr-[36px] pl-[12px] py-[7px] text-[13px] text-ink outline-none transition focus:border-primary"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute left-[10px] text-ink-faint hover:text-ink text-[12px] font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Activity List Card */}
