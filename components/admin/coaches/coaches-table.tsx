@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { toPersianDigits } from "@/lib/persian-digits";
+import { toPersianDigits, normalizeDigits } from "@/lib/persian-digits";
 import { cn } from "@/lib/utils";
 import {
   useCoaches,
@@ -26,8 +26,18 @@ import {
   Mail,
   User as UserIcon,
   Clock,
+  Camera,
 } from "lucide-react";
 import { logActivity } from "@/lib/activities-store";
+import { normalizePersianName, getPhoneLookupKeys } from "@/lib/members-store";
+import {
+  addDeletedCoachId,
+  getDeletedCoachIds,
+  COACHES_UPDATED_EVENT,
+  getLocalTeamMembers,
+  removeLocalTeamMember,
+  type LocalTeamMember,
+} from "@/lib/coaches-store";
 
 export interface TeamMember {
   id: string;
@@ -37,6 +47,9 @@ export interface TeamMember {
   students: string;
   rating: string;
   status: "active" | "inactive";
+  avatar?: string;
+  phone?: string;
+  email?: string;
 }
 
 const PRESET_SPECIALTIES = [
@@ -75,12 +88,14 @@ interface CoachesTableProps {
   isAddModalOpen?: boolean;
   onCloseAddModal?: () => void;
   onOpenAddModal?: () => void;
+  onOpenAddEmployeeModal?: () => void;
 }
 
 export function CoachesTable({
   isAddModalOpen,
   onCloseAddModal,
   onOpenAddModal,
+  onOpenAddEmployeeModal,
 }: CoachesTableProps) {
   const [filter, setFilter] = useState<"all" | "coach" | "staff">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,7 +113,7 @@ export function CoachesTable({
       try {
         const saved = localStorage.getItem("titan_gym_coaches_overrides");
         if (saved) return JSON.parse(saved);
-      } catch {}
+      } catch { }
     }
     return {};
   });
@@ -109,22 +124,82 @@ export function CoachesTable({
       try {
         const saved = localStorage.getItem("titan_gym_members_overrides");
         if (saved) return JSON.parse(saved);
-      } catch {}
+      } catch { }
     }
     return {};
   });
 
-  const saveLocalCoachOverride = (id: string, override: any) => {
-    if (typeof window === "undefined") return;
-    try {
-      const current = {
-        ...localCoachOverrides,
-        [id]: { ...(localCoachOverrides[id] || {}), ...override },
+  // Track deleted coach IDs locally to immediately remove from UI and keep in sync
+  const [deletedCoachIds, setDeletedCoachIds] = useState<string[]>(() => getDeletedCoachIds());
+
+  // Track locally registered team members (staff/coaches) to keep in sync with AddEmployeeModal
+  const [localTeamMembers, setLocalTeamMembers] = useState<LocalTeamMember[]>(() => getLocalTeamMembers());
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const maxDim = 320;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL("image/jpeg", 0.85));
+          } else {
+            resolve(e.target?.result as string);
+          }
+        };
+        img.onerror = () => resolve(e.target?.result as string);
+        img.src = e.target?.result as string;
       };
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const saveLocalCoachOverride = (id: string, override: any) => {
+    if (typeof window === "undefined" || !id) return;
+    try {
+      const raw = localStorage.getItem("titan_gym_coaches_overrides");
+      const current = raw ? JSON.parse(raw) : {};
+      current[id] = { ...(current[id] || {}), ...override };
       setLocalCoachOverrides(current);
       localStorage.setItem("titan_gym_coaches_overrides", JSON.stringify(current));
       window.dispatchEvent(new Event("titan_coaches_updated"));
-    } catch {}
+    } catch { }
+  };
+
+  const saveLocalCoachOverridesBatch = (entries: Record<string, any>) => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("titan_gym_coaches_overrides");
+      const current = raw ? JSON.parse(raw) : {};
+      for (const [key, val] of Object.entries(entries)) {
+        if (key) {
+          current[key] = { ...(current[key] || {}), ...val };
+        }
+      }
+      setLocalCoachOverrides(current);
+      localStorage.setItem("titan_gym_coaches_overrides", JSON.stringify(current));
+      window.dispatchEvent(new Event("titan_coaches_updated"));
+    } catch { }
   };
 
   useEffect(() => {
@@ -134,13 +209,15 @@ export function CoachesTable({
         if (savedCoaches) setLocalCoachOverrides(JSON.parse(savedCoaches));
         const savedMembers = localStorage.getItem("titan_gym_members_overrides");
         if (savedMembers) setLocalMemberOverrides(JSON.parse(savedMembers));
-      } catch {}
+        setDeletedCoachIds(getDeletedCoachIds());
+        setLocalTeamMembers(getLocalTeamMembers());
+      } catch { }
     };
-    window.addEventListener("titan_coaches_updated", handleSync);
+    window.addEventListener(COACHES_UPDATED_EVENT, handleSync);
     window.addEventListener("titan_members_updated", handleSync);
     window.addEventListener("storage", handleSync);
     return () => {
-      window.removeEventListener("titan_coaches_updated", handleSync);
+      window.removeEventListener(COACHES_UPDATED_EVENT, handleSync);
       window.removeEventListener("titan_members_updated", handleSync);
       window.removeEventListener("storage", handleSync);
     };
@@ -165,7 +242,7 @@ export function CoachesTable({
       try {
         const raw = localStorage.getItem("gym_deleted_member_ids");
         if (raw) deletedIds = JSON.parse(raw);
-      } catch {}
+      } catch { }
     }
 
     return list.filter((m: any) => {
@@ -243,56 +320,185 @@ export function CoachesTable({
                     : [];
     }
 
-    return list.map((c: any) => {
-      const coachId = String(c.id);
-      const override = localCoachOverrides[coachId] || {};
+    const seenIds = new Set(list.map((c: any) => String(c.id)));
+    const seenPhones = new Set(
+      list.map((c: any) => normalizeDigits(c.phone || c.phone_number || "")).filter(Boolean)
+    );
+    const seenNames = new Set(
+      list.map((c: any) => {
+        const cName = (
+          c.full_name ||
+          (c.user && (c.user.full_name || `${c.user.first_name || ""} ${c.user.last_name || ""}`.trim())) ||
+          `${c.first_name || ""} ${c.last_name || ""}`.trim() ||
+          c.name ||
+          ""
+        ).trim();
+        return normalizePersianName(cName);
+      }).filter(Boolean)
+    );
 
-      const fullName = (
-        override.name ||
-        c.full_name ||
-        (c.user &&
-          (c.user.full_name ||
-            `${c.user.first_name || ""} ${c.user.last_name || ""}`.trim() ||
-            c.user.username)) ||
-        `${c.first_name || ""} ${c.last_name || ""}`.trim() ||
-        c.name ||
-        "مربی"
-      ).trim();
+    // 1. Merge locally created team members (like employees added via AddEmployeeModal)
+    const localList = getLocalTeamMembers();
+    for (const lm of localList) {
+      const idStr = String(lm.id);
+      const phoneNorm = normalizeDigits(lm.phone || "");
+      const nameNorm = normalizePersianName(lm.full_name || `${lm.first_name || ""} ${lm.last_name || ""}`);
+      if (seenIds.has(idStr)) continue;
+      if (phoneNorm && seenPhones.has(phoneNorm)) continue;
+      if (nameNorm && seenNames.has(nameNorm)) continue;
+      seenIds.add(idStr);
+      if (phoneNorm) seenPhones.add(phoneNorm);
+      if (nameNorm) seenNames.add(nameNorm);
+      list.push({
+        ...lm,
+        id: idStr,
+        name: lm.full_name || `${lm.first_name || ""} ${lm.last_name || ""}`.trim(),
+      });
+    }
 
-      // Real live student count synchronized with members
-      const realStudentCount = liveStudentCount(fullName, coachId);
-      const students = String(realStudentCount);
-      const rating = override.rating || (c.rating ? String(c.rating) : "۵٫۰");
-
-      let role = override.role;
-      if (!role) {
-        if (c.position === "head_coach") {
-          role = "سرمربی";
-        } else if (c.position === "reception") {
-          role = "پذیرش / اداری";
-        } else if (Array.isArray(c.specialties) && c.specialties.length > 0) {
-          role = `مربی ${c.specialties.join("، ")}`;
-        } else if (typeof c.specialties === "string" && c.specialties) {
-          role = `مربی ${c.specialties}`;
-        } else {
-          role = "مربی";
+    // 2. Synthesize any staff recorded in localCoachOverrides (guarantees newly added staff always show)
+    Object.entries(localCoachOverrides).forEach(([key, val]: [string, any]) => {
+      if (val?.type === "staff" && val?.name && val?.status !== "deleted" && !val?.is_deleted) {
+        const nameNorm = normalizePersianName(val.name);
+        const phoneNorm = normalizeDigits(val.phone || "");
+        if (nameNorm && !seenNames.has(nameNorm) && (!phoneNorm || !seenPhones.has(phoneNorm))) {
+          seenNames.add(nameNorm);
+          if (phoneNorm) seenPhones.add(phoneNorm);
+          const syntheticId = key.startsWith("name_") || key.startsWith("normname_") || key.startsWith("phone_")
+            ? `staff-${nameNorm}`
+            : key;
+          list.push({
+            id: syntheticId,
+            full_name: val.name,
+            name: val.name,
+            role: val.role || "پذیرش / اداری",
+            position: "reception",
+            type: "staff",
+            phone: val.phone,
+            email: val.email,
+            avatar: val.avatar,
+            is_active: val.status !== "inactive" && val.status !== "deleted",
+          });
         }
       }
-
-      const type: "coach" | "staff" = override.type || (c.position === "reception" ? "staff" : "coach");
-      const status: "active" | "inactive" = override.status || (c.is_active !== false ? "active" : "inactive");
-
-      return {
-        id: coachId,
-        name: fullName,
-        role,
-        type,
-        students: toPersianDigits(students),
-        rating: toPersianDigits(rating),
-        status,
-      };
     });
-  }, [coachesData, localCoachOverrides, liveStudentCount]);
+
+    return list
+      .filter((c: any) => {
+        const coachId = String(c.id);
+        if (deletedCoachIds.includes(coachId)) return false;
+
+        const rawPhone = c.phone || c.phone_number || "";
+        const phoneKeys = getPhoneLookupKeys(rawPhone);
+        const cName = (
+          c.full_name ||
+          (c.user &&
+            (c.user.full_name ||
+              `${c.user.first_name || ""} ${c.user.last_name || ""}`.trim() ||
+              c.user.username)) ||
+          `${c.first_name || ""} ${c.last_name || ""}`.trim() ||
+          c.name ||
+          ""
+        ).trim();
+        const normCName = normalizePersianName(cName);
+
+        let override = localCoachOverrides[coachId] || {};
+        for (const pk of phoneKeys) {
+          if (localCoachOverrides[`phone_${pk}`]) {
+            override = { ...localCoachOverrides[`phone_${pk}`], ...override };
+            break;
+          }
+        }
+        if (cName && localCoachOverrides[`name_${cName}`]) {
+          override = { ...localCoachOverrides[`name_${cName}`], ...override };
+        }
+        if (normCName && localCoachOverrides[`normname_${normCName}`]) {
+          override = { ...localCoachOverrides[`normname_${normCName}`], ...override };
+        }
+        if (localCoachOverrides[coachId]) {
+          override = { ...localCoachOverrides[coachId], ...override };
+        }
+
+        if (override.is_deleted || override.status === "deleted") return false;
+        // If deactivated in Django backend and not explicitly forced active in local override
+        if (c.is_active === false && override.status !== "active") return false;
+
+        return true;
+      })
+      .map((c: any) => {
+        const coachId = String(c.id);
+        const rawPhone = c.phone || c.phone_number || "";
+        const phoneKeys = getPhoneLookupKeys(rawPhone);
+
+        const cName = (
+          c.full_name ||
+          (c.user &&
+            (c.user.full_name ||
+              `${c.user.first_name || ""} ${c.user.last_name || ""}`.trim() ||
+              c.user.username)) ||
+          `${c.first_name || ""} ${c.last_name || ""}`.trim() ||
+          c.name ||
+          "مربی"
+        ).trim();
+        const normCName = normalizePersianName(cName);
+
+        let override = localCoachOverrides[coachId] || {};
+        for (const pk of phoneKeys) {
+          if (localCoachOverrides[`phone_${pk}`]) {
+            override = { ...localCoachOverrides[`phone_${pk}`], ...override };
+            break;
+          }
+        }
+        if (localCoachOverrides[`name_${cName}`]) {
+          override = { ...localCoachOverrides[`name_${cName}`], ...override };
+        }
+        if (localCoachOverrides[`normname_${normCName}`]) {
+          override = { ...localCoachOverrides[`normname_${normCName}`], ...override };
+        }
+        if (localCoachOverrides[coachId]) {
+          override = { ...localCoachOverrides[coachId], ...override };
+        }
+
+        const fullName = (override.name || cName).trim();
+
+        // Real live student count synchronized with members
+        const realStudentCount = liveStudentCount(fullName, coachId);
+        const students = String(realStudentCount);
+        const rating = override.rating || (c.rating ? String(c.rating) : "۵٫۰");
+
+        let role = override.role || c.role;
+        if (!role) {
+          if (c.position === "head_coach") {
+            role = "سرمربی";
+          } else if (c.position === "reception") {
+            role = "پذیرش / اداری";
+          } else if (Array.isArray(c.specialties) && c.specialties.length > 0) {
+            role = `مربی ${c.specialties.join("، ")}`;
+          } else if (typeof c.specialties === "string" && c.specialties) {
+            role = `مربی ${c.specialties}`;
+          } else {
+            role = "مربی";
+          }
+        }
+
+        const type: "coach" | "staff" = override.type || (c.position === "reception" || c.position === "staff" || c.type === "staff" ? "staff" : "coach");
+        const status: "active" | "inactive" = override.status || (c.is_active !== false ? "active" : "inactive");
+        const avatar = override.avatar || c.avatar || c.profile_picture || c.photo || c.image || undefined;
+
+        return {
+          id: coachId,
+          name: fullName,
+          role,
+          type,
+          students: type === "staff" ? "—" : toPersianDigits(students),
+          rating: type === "staff" ? "—" : toPersianDigits(rating),
+          status,
+          avatar,
+          phone: override.phone || rawPhone || undefined,
+          email: override.email || c.email || undefined,
+        };
+      });
+  }, [coachesData, localCoachOverrides, liveStudentCount, deletedCoachIds, localTeamMembers]);
 
   // Edit states for existing rows
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
@@ -303,6 +509,7 @@ export function CoachesTable({
     students: string;
     rating: string;
     status: "active" | "inactive";
+    avatar: string;
   }>({
     name: "",
     role: "",
@@ -310,6 +517,7 @@ export function CoachesTable({
     students: "",
     rating: "۵٫۰",
     status: "active",
+    avatar: "",
   });
 
   // Dedicated Add Coach Form State matching Titan_Gym_OS_API.yaml CoachCreate
@@ -318,6 +526,7 @@ export function CoachesTable({
     last_name: "",
     phone: "",
     email: "",
+    avatar: "",
     gender: "male" as "male" | "female" | "",
     birth_date: "",
     address: "",
@@ -383,26 +592,86 @@ export function CoachesTable({
   };
 
   const filteredTeam = useMemo(() => {
+    const rawQ = searchQuery.trim();
+    const q = normalizePersianName(rawQ);
     return team.filter((item) => {
       const matchesFilter = filter === "all" || item.type === filter;
-      const matchesSearch = item.name.includes(searchQuery.trim());
-      return matchesFilter && matchesSearch;
+      if (!matchesFilter) return false;
+      if (!rawQ) return true;
+      const nameNorm = normalizePersianName(item.name);
+      const roleNorm = normalizePersianName(item.role);
+      const phoneDigits = normalizeDigits(item.phone || "");
+      return (
+        item.name.includes(rawQ) ||
+        nameNorm.includes(q) ||
+        roleNorm.includes(q) ||
+        phoneDigits.includes(rawQ)
+      );
     });
   }, [team, filter, searchQuery]);
+
+  const [deletingCoachId, setDeletingCoachId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
     const coachToDelete = team.find((m) => String(m.id) === String(id));
     const coachName = coachToDelete?.name || "عضو تیم";
-    if (typeof window !== "undefined" && window.confirm(`آیا از حذف «${coachName}» اطمینان دارید؟`)) {
-      try {
-        await deleteCoachMutation.mutateAsync(id);
-        logActivity({
-          type: "ALERT",
-          text: `حذف مربی: ${coachName}`,
-        });
-      } catch {
-        // Handled
+    if (typeof window !== "undefined" && !window.confirm(`آیا از حذف «${coachName}» اطمینان دارید؟`)) {
+      return;
+    }
+
+    setDeletingCoachId(id);
+
+    try {
+      // 1. Immediately track as deleted locally to remove from UI instantly
+      addDeletedCoachId(id);
+      removeLocalTeamMember(id);
+      setDeletedCoachIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      setLocalTeamMembers(getLocalTeamMembers());
+
+      const deleteOverride = {
+        status: "inactive" as const,
+        is_active: false,
+        is_deleted: true,
+      };
+      const batch: Record<string, any> = {
+        [id]: deleteOverride,
+      };
+      if (coachToDelete?.name) {
+        batch[`name_${coachToDelete.name}`] = deleteOverride;
+        batch[`normname_${normalizePersianName(coachToDelete.name)}`] = deleteOverride;
       }
+      if (coachToDelete?.phone) {
+        for (const pk of getPhoneLookupKeys(coachToDelete.phone)) {
+          batch[`phone_${pk}`] = deleteOverride;
+        }
+      }
+      saveLocalCoachOverridesBatch(batch);
+      window.dispatchEvent(new Event(COACHES_UPDATED_EVENT));
+
+      // 2. Send delete / deactivation command to Django backend
+      await deleteCoachMutation.mutateAsync(id);
+
+      logActivity({
+        type: "ALERT",
+        text: `حذف مربی: ${coachName}`,
+      });
+
+      // 3. Invalidate and refetch queries to synchronize with Django backend
+      await queryClient.invalidateQueries({ queryKey: ["coaches"] });
+      await queryClient.refetchQueries({ queryKey: ["coaches"] });
+      await queryClient.invalidateQueries({ queryKey: ["members"] });
+      await queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+    } catch (err: any) {
+      console.error("Failed to delete coach on Django:", err);
+      const msg =
+        err?.detail ||
+        err?.message ||
+        (typeof err === "string" ? err : "خطا در حذف مربی از سرور جنگو.");
+      if (typeof window !== "undefined") {
+        window.alert(`خطا در حذف مربی از پنل جنگو:\n${msg}`);
+      }
+    } finally {
+      setDeletingCoachId(null);
     }
   };
 
@@ -415,6 +684,7 @@ export function CoachesTable({
       students: item.students,
       rating: item.rating,
       status: item.status,
+      avatar: item.avatar || "",
     });
   };
 
@@ -427,16 +697,29 @@ export function CoachesTable({
     const first_name = parts[0] || "";
     const last_name = parts.slice(1).join(" ") || "";
     const is_active = formData.status === "active";
+    const editNormName = normalizePersianName(formData.name);
+    const editPhoneKeys = getPhoneLookupKeys(editingMember.phone);
 
-    // 1. Immediately apply local override so UI reflects the changes instantly
-    saveLocalCoachOverride(editingMember.id, {
+    const updatedOverride = {
       status: formData.status,
       name: formData.name.trim(),
       role: formData.role.trim(),
       type: formData.type,
       students: formData.students,
       rating: formData.rating,
-    });
+      avatar: formData.avatar?.trim() || undefined,
+    };
+
+    const editBatch: Record<string, any> = {
+      [editingMember.id]: updatedOverride,
+      [`name_${formData.name.trim()}`]: updatedOverride,
+      [`name_${editingMember.name}`]: updatedOverride,
+      [`normname_${editNormName}`]: updatedOverride,
+    };
+    for (const pk of editPhoneKeys) {
+      editBatch[`phone_${pk}`] = updatedOverride;
+    }
+    saveLocalCoachOverridesBatch(editBatch);
 
     setIsSubmittingEdit(true);
 
@@ -476,8 +759,8 @@ export function CoachesTable({
 
     const rawPhone = addFormData.phone
       ? addFormData.phone
-          .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
-          .replace(/[^\d]/g, "")
+        .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
+        .replace(/[^\d]/g, "")
       : "";
 
     if (!rawPhone || rawPhone.length < 10) {
@@ -497,7 +780,35 @@ export function CoachesTable({
     setAddSubmitError(null);
 
     try {
-      await addCoachMutation.mutateAsync({
+      const coachFullName = `${addFormData.first_name.trim()} ${addFormData.last_name.trim()}`;
+      const normName = normalizePersianName(coachFullName);
+      const phoneKeys = getPhoneLookupKeys(rawPhone);
+      const avatarData = addFormData.avatar?.trim() || undefined;
+
+      const roleDesc = finalSpecialties.length > 0 ? `مربی ${finalSpecialties.join("، ")}` : "مربی";
+      const newOverride = {
+        name: coachFullName,
+        role: addFormData.position === "reception" ? "پذیرش / اداری" : roleDesc,
+        type: addFormData.position === "reception" ? "staff" : "coach",
+        status: "active",
+        avatar: avatarData,
+        phone: rawPhone,
+        email: addFormData.email.trim() || undefined,
+      };
+
+      const batchToSave: Record<string, any> = {
+        [`name_${coachFullName}`]: newOverride,
+        [`normname_${normName}`]: newOverride,
+      };
+      for (const pk of phoneKeys) {
+        batchToSave[`phone_${pk}`] = newOverride;
+      }
+
+      // 1. Immediately persist batch override
+      saveLocalCoachOverridesBatch(batchToSave);
+
+      // 2. Submit to Django backend
+      const created = await addCoachMutation.mutateAsync({
         first_name: addFormData.first_name.trim(),
         last_name: addFormData.last_name.trim(),
         phone: rawPhone,
@@ -506,6 +817,7 @@ export function CoachesTable({
         gender: addFormData.gender || undefined,
         birth_date: addFormData.birth_date || undefined,
         email: addFormData.email.trim() || undefined,
+        avatar: avatarData,
         address: addFormData.address.trim() || undefined,
         experience_years: typeof addFormData.experience_years === "number" ? addFormData.experience_years : 0,
         primary_certification: addFormData.primary_certification.trim() || undefined,
@@ -517,10 +829,49 @@ export function CoachesTable({
         instant_activation: addFormData.instant_activation,
       });
 
-      const coachName = `${addFormData.first_name.trim()} ${addFormData.last_name.trim()}`;
+      const createdId = (created as any)?.id || (created as any)?.data?.id;
+      const effectiveId = createdId ? String(createdId) : "";
+      if (effectiveId) {
+        saveLocalCoachOverride(effectiveId, newOverride);
+      }
+
+      // 3. Invalidate and refetch
+      await queryClient.invalidateQueries({ queryKey: ["coaches"] });
+      await queryClient.refetchQueries({ queryKey: ["coaches"] });
+      await queryClient.invalidateQueries({ queryKey: ["members"] });
+      await queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+
+      // 4. Find coach in fresh list and bind ID override
+      try {
+        const freshData: any = queryClient.getQueryData(["coaches"]);
+        let freshList: any[] = [];
+        if (Array.isArray(freshData)) {
+          freshList = freshData;
+        } else if (freshData && typeof freshData === "object") {
+          freshList = Array.isArray(freshData.coaches)
+            ? freshData.coaches
+            : Array.isArray(freshData.results)
+              ? freshData.results
+              : [];
+        }
+        const foundCoach = freshList.find((c: any) => {
+          if (effectiveId && String(c.id) === effectiveId) return true;
+          const cName = c.full_name || `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.name || "";
+          if (normalizePersianName(cName) === normName) return true;
+          const cPhoneKeys = getPhoneLookupKeys(c.phone || c.phone_number);
+          if (phoneKeys.some((k) => cPhoneKeys.includes(k))) return true;
+          return false;
+        });
+        if (foundCoach && foundCoach.id) {
+          saveLocalCoachOverride(String(foundCoach.id), newOverride);
+        }
+      } catch (e) {
+        console.error("Failed to associate coach id:", e);
+      }
+
       logActivity({
         type: "COACH",
-        text: `ثبت مربی جدید: ${coachName} (${finalSpecialties.slice(0, 2).join("، ")})`,
+        text: `ثبت مربی جدید: ${coachFullName} (${finalSpecialties.slice(0, 2).join("، ")})`,
       });
 
       // Reset form
@@ -529,6 +880,7 @@ export function CoachesTable({
         last_name: "",
         phone: "",
         email: "",
+        avatar: "",
         gender: "male",
         birth_date: "",
         address: "",
@@ -556,18 +908,18 @@ export function CoachesTable({
             field === "working_days"
               ? "روزهای کاری"
               : field === "phone" || field === "phone_number"
-              ? "شماره همراه"
-              : field === "first_name"
-              ? "نام"
-              : field === "last_name"
-              ? "نام خانوادگی"
-              : field === "specialties"
-              ? "تخصص‌ها"
-              : field === "email"
-              ? "ایمیل"
-              : field === "work_shift"
-              ? "شیفت کاری"
-              : field;
+                ? "شماره همراه"
+                : field === "first_name"
+                  ? "نام"
+                  : field === "last_name"
+                    ? "نام خانوادگی"
+                    : field === "specialties"
+                      ? "تخصص‌ها"
+                      : field === "email"
+                        ? "ایمیل"
+                        : field === "work_shift"
+                          ? "شیفت کاری"
+                          : field;
           parts.push(`${fieldNameFa}: ${(errors as string[]).join("، ")}`);
         }
         msg = parts.join(" | ");
@@ -698,12 +1050,20 @@ export function CoachesTable({
                     >
                       <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
                         <div className="flex items-center gap-[11px]">
-                          <span
-                            className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-bold text-white shadow-xs"
-                            style={{ backgroundColor: avatarColor }}
-                          >
-                            {getInitials(item.name)}
-                          </span>
+                          {item.avatar ? (
+                            <img
+                              src={item.avatar}
+                              alt={item.name}
+                              className="h-[36px] w-[36px] shrink-0 rounded-[10px] object-cover shadow-xs border border-border"
+                            />
+                          ) : (
+                            <span
+                              className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-bold text-white shadow-xs"
+                              style={{ backgroundColor: avatarColor }}
+                            >
+                              {getInitials(item.name)}
+                            </span>
+                          )}
                           <div>
                             <div className="text-[13.5px] font-bold text-ink">
                               {item.name}
@@ -721,7 +1081,7 @@ export function CoachesTable({
                         {item.students}
                       </td>
                       <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
-                        {item.rating !== "—" ? `⭐ ${item.rating}` : "—"}
+                        {item.type === "coach" && item.rating !== "—" ? `⭐ ${item.rating}` : "—"}
                       </td>
                       <td className="px-[22px] py-[15px] text-[13.5px] whitespace-nowrap text-ink-soft">
                         <span
@@ -767,20 +1127,28 @@ export function CoachesTable({
                           <button
                             type="button"
                             onClick={() => handleDelete(item.id)}
-                            className="inline-flex h-[32px] w-[32px] cursor-pointer items-center justify-center rounded-[8px] text-ink-faint transition-all duration-150 hover:bg-[#FFF1F2] hover:text-[#E11D48]"
+                            disabled={deletingCoachId === item.id}
+                            className={cn(
+                              "inline-flex h-[32px] w-[32px] cursor-pointer items-center justify-center rounded-[8px] text-ink-faint transition-all duration-150 hover:bg-[#FFF1F2] hover:text-[#E11D48]",
+                              deletingCoachId === item.id && "cursor-not-allowed opacity-50"
+                            )}
                             aria-label="حذف"
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className="h-[16px] w-[16px]"
-                            >
-                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
+                            {deletingCoachId === item.id ? (
+                              <Loader2 className="h-[15px] w-[15px] animate-spin text-[#E11D48]" />
+                            ) : (
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="h-[16px] w-[16px]"
+                              >
+                                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                            )}
                           </button>
                         </div>
                       </td>
@@ -828,6 +1196,54 @@ export function CoachesTable({
               </button>
             </div>
             <form onSubmit={handleSaveEdit} className="flex flex-col gap-[14px]">
+              {/* Profile Picture in Edit Coach Modal */}
+              <div className="flex items-center gap-[14px] rounded-[14px] border border-dashed border-border bg-bg/50 p-[12px]">
+                <div className="relative shrink-0">
+                  <div className="flex h-[56px] w-[56px] items-center justify-center overflow-hidden rounded-[14px] border-2 border-border bg-surface shadow-2xs">
+                    {formData.avatar ? (
+                      <img
+                        src={formData.avatar}
+                        alt={formData.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="h-[24px] w-[24px] text-ink-faint" />
+                    )}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12.5px] font-bold text-ink">تصویر پروفایل مربی</div>
+                  <div className="mt-[4px] flex items-center gap-[8px]">
+                    <label className="inline-flex cursor-pointer items-center gap-[5px] rounded-[8px] bg-surface border border-border px-[10px] py-[4px] text-[11.5px] font-bold text-ink shadow-2xs hover:border-primary hover:bg-tint hover:text-primary-dark transition-all">
+                      <Camera className="h-[13px] w-[13px]" />
+                      <span>{formData.avatar ? "تغییر تصویر" : "افزودن تصویر"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const dataUrl = await compressImage(file);
+                            setFormData((prev) => ({ ...prev, avatar: dataUrl }));
+                          } catch { }
+                        }}
+                      />
+                    </label>
+                    {formData.avatar && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, avatar: "" }))}
+                        className="text-[11px] font-bold text-[#E11D48] hover:underline cursor-pointer"
+                      >
+                        حذف
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="mb-[6px] block text-[13px] font-bold text-ink">
                   نام و نام خانوادگی
@@ -987,6 +1403,74 @@ export function CoachesTable({
             )}
 
             <form onSubmit={handleSaveNew} className="flex flex-col gap-[14px]">
+              {/* Profile Picture Upload Section */}
+              <div className="flex items-center gap-[16px] rounded-[14px] border border-dashed border-border bg-bg/50 p-[14px] transition-colors hover:border-primary/50">
+                <div className="relative group shrink-0">
+                  <div className="relative flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-[18px] border-2 border-border bg-surface shadow-xs">
+                    {addFormData.avatar ? (
+                      <img
+                        src={addFormData.avatar}
+                        alt="تصویر پروفایل مربی"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-ink-faint">
+                        <UserIcon className="h-[28px] w-[28px]" />
+                      </div>
+                    )}
+                  </div>
+                  {addFormData.avatar && (
+                    <button
+                      type="button"
+                      onClick={() => setAddFormData((prev) => ({ ...prev, avatar: "" }))}
+                      className="absolute -top-[6px] -left-[6px] flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#E11D48] text-white shadow-xs transition-transform hover:scale-110 cursor-pointer"
+                      title="حذف تصویر"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-bold text-ink">
+                    تصویر پروفایل مربی
+                  </div>
+                  <div className="mt-[2px] text-[11.5px] text-ink-faint">
+                    فرمت‌های JPG، PNG یا WEBP (اختیاری)
+                  </div>
+                  <div className="mt-[8px] flex items-center gap-[8px]">
+                    <label className="inline-flex cursor-pointer items-center gap-[6px] rounded-[9px] bg-surface border border-border px-[11px] py-[5px] text-[12px] font-bold text-ink shadow-2xs transition-all hover:border-primary hover:bg-tint hover:text-primary-dark">
+                      <Camera className="h-[14px] w-[14px]" />
+                      <span>{addFormData.avatar ? "تغییر تصویر" : "بارگذاری تصویر"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const dataUrl = await compressImage(file);
+                            setAddFormData((prev) => ({ ...prev, avatar: dataUrl }));
+                          } catch (err) {
+                            console.error("Failed to load coach avatar:", err);
+                          }
+                        }}
+                      />
+                    </label>
+                    {addFormData.avatar && (
+                      <button
+                        type="button"
+                        onClick={() => setAddFormData((prev) => ({ ...prev, avatar: "" }))}
+                        className="text-[11.5px] font-bold text-[#E11D48] hover:underline cursor-pointer"
+                      >
+                        حذف
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* First & Last Name */}
               <div className="grid grid-cols-1 gap-[12px] sm:grid-cols-2">
                 <div>

@@ -71,6 +71,11 @@ import {
 import { usePlans } from "@/lib/hooks/queries/use-plans";
 import { useCoaches } from "@/lib/hooks/queries/use-coaches";
 import { plansService } from "@/lib/api/services/plans.service";
+import {
+  isStaffMember,
+  getLocalCoachOverrides,
+  getDeletedCoachIds,
+} from "@/lib/coaches-store";
 import Link from "next/link";
 import {
   Loader2,
@@ -266,9 +271,15 @@ export function MembersTable({
     const list: { id?: string; name: string; label: string }[] = [];
     const seenNames = new Set<string>();
 
+    const overrides = getLocalCoachOverrides();
+    const deletedCoachIds = getDeletedCoachIds();
+
     // 1. Coaches returned from Django backend /coaches/
     if (coachesList && coachesList.length > 0) {
       coachesList.forEach((c: any) => {
+        const coachId = c.id ? String(c.id) : "";
+        if (coachId && deletedCoachIds.includes(coachId)) return;
+
         const coachName = (
           c.full_name ||
           (c.user && (c.user.full_name || `${c.user.first_name || ""} ${c.user.last_name || ""}`.trim() || c.user.username)) ||
@@ -277,15 +288,30 @@ export function MembersTable({
           ""
         ).trim();
 
-        if (coachName && coachName !== "بدون مربی" && coachName !== "ندارد" && !seenNames.has(coachName)) {
+        if (!coachName || coachName === "بدون مربی" || coachName === "ندارد") return;
+
+        const normName = normalizePersianName(coachName);
+        const override =
+          (coachId ? overrides[coachId] : undefined) ||
+          overrides[`name_${coachName}`] ||
+          overrides[`normname_${normName}`] ||
+          {};
+
+        if (override.is_deleted || override.status === "deleted") return;
+        if (c.is_active === false && override.status !== "active") return;
+
+        // CRITICAL: Do NOT show employees / staff when picking coaches for members
+        if (isStaffMember(c, override)) return;
+
+        if (!seenNames.has(coachName)) {
           seenNames.add(coachName);
           const spec = Array.isArray(c.specialties) && c.specialties.length > 0
             ? ` (${c.specialties.join("، ")})`
-            : typeof c.specialties === "string" && c.specialties
+            : typeof c.specialties === "string" && c.specialties && !c.specialties.includes("پذیرش")
               ? ` (${c.specialties})`
               : "";
           list.push({
-            id: c.id ? String(c.id) : undefined,
+            id: coachId || undefined,
             name: coachName,
             label: `${coachName}${spec}`,
           });
@@ -313,6 +339,10 @@ export function MembersTable({
       ).trim();
 
       if (coachName && coachName !== "بدون مربی" && coachName !== "ندارد" && !seenNames.has(coachName)) {
+        const norm = normalizePersianName(coachName);
+        const override = overrides[`name_${coachName}`] || overrides[`normname_${norm}`] || {};
+        if (override.is_deleted || isStaffMember({}, override)) return;
+
         seenNames.add(coachName);
         list.push({
           id: m.assigned_coach_id || m.assigned_coach ? String(m.assigned_coach_id || m.assigned_coach) : undefined,

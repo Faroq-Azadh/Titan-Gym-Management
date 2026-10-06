@@ -5,10 +5,13 @@ import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { CoachesKpi } from "@/components/admin/coaches/coaches-kpi";
 import { CoachesTable } from "@/components/admin/coaches/coaches-table";
+import { AddEmployeeModal } from "@/components/admin/coaches/add-employee-modal";
+import { Briefcase } from "lucide-react";
 
 export default function AdminCoachesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen">
@@ -40,6 +43,17 @@ export default function AdminCoachesPage() {
             </div>
 
             <div className="flex items-center gap-[10px]">
+              {/* Add Employee Button */}
+              <button
+                type="button"
+                onClick={() => setIsAddEmployeeModalOpen(true)}
+                className="inline-flex cursor-pointer items-center justify-center gap-[8px] whitespace-nowrap rounded-[10px] border border-border bg-surface px-[14px] py-[8px] text-[13px] font-semibold text-ink shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-[1px] hover:bg-bg hover:text-primary-dark"
+              >
+                <Briefcase className="h-[16px] w-[16px] text-primary" />
+                <span>افزودن کارمند</span>
+              </button>
+
+              {/* Add Coach Button */}
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(true)}
@@ -69,6 +83,13 @@ export default function AdminCoachesPage() {
             isAddModalOpen={isAddModalOpen}
             onOpenAddModal={() => setIsAddModalOpen(true)}
             onCloseAddModal={() => setIsAddModalOpen(false)}
+            onOpenAddEmployeeModal={() => setIsAddEmployeeModalOpen(true)}
+          />
+
+          {/* Add Employee Modal */}
+          <AddEmployeeModal
+            isOpen={isAddEmployeeModalOpen}
+            onClose={() => setIsAddEmployeeModalOpen(false)}
           />
         </main>
       </div>

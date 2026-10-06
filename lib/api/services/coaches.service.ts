@@ -40,6 +40,7 @@ export interface AddCoachPayload {
   gender?: "male" | "female" | "";
   birth_date?: string | null;
   email?: string;
+  avatar?: string | null;
   address?: string;
   experience_years?: number;
   primary_certification?: string;
@@ -123,7 +124,45 @@ export const coachesService = {
    */
   async getCoaches(): Promise<CoachesResponse | CoachItem[]> {
     try {
-      return await apiClient.get<CoachesResponse | CoachItem[]>(ENDPOINTS.COACHES.LIST, { requiresAuth: true });
+      const res = await apiClient.get<any>(ENDPOINTS.COACHES.LIST, { requiresAuth: true });
+      // In case Django separates /coaches/ and /coaches/?type=staff
+      try {
+        const staffRes = await apiClient.get<any>("/coaches/?type=staff", { requiresAuth: true });
+        const staffList: any[] = Array.isArray(staffRes)
+          ? staffRes
+          : Array.isArray(staffRes?.coaches)
+            ? staffRes.coaches
+            : Array.isArray(staffRes?.results)
+              ? staffRes.results
+              : [];
+        if (staffList.length > 0) {
+          if (Array.isArray(res)) {
+            const seen = new Set(res.map((c: any) => String(c.id)));
+            for (const s of staffList) {
+              if (!seen.has(String(s.id))) {
+                res.push({ ...s, type: "staff", position: s.position || "reception" });
+              }
+            }
+          } else if (res && typeof res === "object") {
+            const targetArray = Array.isArray(res.coaches)
+              ? res.coaches
+              : Array.isArray(res.results)
+                ? res.results
+                : null;
+            if (targetArray) {
+              const seen = new Set(targetArray.map((c: any) => String(c.id)));
+              for (const s of staffList) {
+                if (!seen.has(String(s.id))) {
+                  targetArray.push({ ...s, type: "staff", position: s.position || "reception" });
+                }
+              }
+            }
+          }
+        }
+      } catch (staffErr) {
+        console.warn("Could not fetch /coaches/?type=staff:", staffErr);
+      }
+      return res;
     } catch (err) {
       console.warn("Error fetching /coaches/, attempting fallback /coaches/?type=coach:", err);
       try {
@@ -197,9 +236,31 @@ export const coachesService = {
   },
 
   /**
-   * Delete or deactivate a coach
+   * Delete or deactivate a coach in Django backend
+   * Per OpenAPI spec: "No DELETE — attendance history, plans and members reference the coach; deactivate instead."
    */
   async deleteCoach(id: string | number): Promise<void> {
-    return apiClient.delete(ENDPOINTS.COACHES.DETAIL(id), { requiresAuth: true });
+    try {
+      // 1. Attempt HTTP DELETE /coaches/{id}/
+      await apiClient.delete(ENDPOINTS.COACHES.DETAIL(id), { requiresAuth: true });
+      return;
+    } catch (err: any) {
+      const status = err?.status || err?.response?.status || err?.statusCode;
+      // 2. If DELETE is not supported by DRF (405 Method Not Allowed) or other error, soft-deactivate via PATCH is_active: false
+      if (status === 405 || status === 404 || status === 403 || status === 400 || status === 500 || !status) {
+        try {
+          await apiClient.patch(
+            ENDPOINTS.COACHES.DETAIL(id),
+            { is_active: false },
+            { requiresAuth: true }
+          );
+          return;
+        } catch (patchErr) {
+          console.warn("Deactivation PATCH failed:", patchErr);
+          throw patchErr;
+        }
+      }
+      throw err;
+    }
   },
 };

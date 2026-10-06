@@ -49,9 +49,11 @@ export function useDeleteCoach() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string | number) => coachesService.deleteCoach(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["coaches"] });
-      queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["coaches"] });
+      await queryClient.refetchQueries({ queryKey: ["coaches"] });
+      await queryClient.invalidateQueries({ queryKey: ["members"] });
+      await queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
     },
   });
 }

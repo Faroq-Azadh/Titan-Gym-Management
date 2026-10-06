@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useCoaches } from "@/lib/hooks/queries/use-coaches";
+import { useCoachesData } from "@/lib/coaches-store";
 import { toPersianDigits } from "@/lib/persian-digits";
 
 interface CoachesKpiProps {
@@ -17,50 +17,12 @@ export function CoachesKpi({
   avgRating,
   staffCount,
 }: CoachesKpiProps) {
-  const { data: coachesData } = useCoaches();
+  const { stats } = useCoachesData();
 
-  const [localCoachOverrides, setLocalCoachOverrides] = React.useState<Record<string, any>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("titan_gym_coaches_overrides");
-        if (saved) return JSON.parse(saved);
-      } catch {}
-    }
-    return {};
-  });
-
-  React.useEffect(() => {
-    const handleSync = () => {
-      try {
-        const saved = localStorage.getItem("titan_gym_coaches_overrides");
-        if (saved) setLocalCoachOverrides(JSON.parse(saved));
-      } catch {}
-    };
-    window.addEventListener("titan_coaches_updated", handleSync);
-    window.addEventListener("storage", handleSync);
-    return () => {
-      window.removeEventListener("titan_coaches_updated", handleSync);
-      window.removeEventListener("storage", handleSync);
-    };
-  }, []);
-
-  const list = Array.isArray(coachesData) ? coachesData : coachesData?.coaches || [];
-  const total = totalCount ?? list.length;
-  const active =
-    activeCount ??
-    list.filter((c) => {
-      const override = localCoachOverrides[String(c.id)];
-      if (override?.status) return override.status === "active";
-      return c.is_active !== false;
-    }).length;
-  const calculatedAvgRating =
-    avgRating ??
-    (list.length > 0
-      ? (
-          list.reduce((acc, c) => acc + (parseFloat(String(c.rating || 5)) || 5), 0) / list.length
-        ).toFixed(1)
-      : "۰");
-  const staff = staffCount ?? 0;
+  const total = totalCount ?? stats.total;
+  const active = activeCount ?? stats.active;
+  const calculatedAvgRating = avgRating ?? stats.avgRating;
+  const staff = staffCount ?? stats.staffCount;
 
   return (
     <div className="mb-[18px] grid grid-cols-1 gap-[18px] min-[640px]:grid-cols-2 min-[1101px]:grid-cols-4">

@@ -40,7 +40,7 @@ export function categorizeActivity(act: ActivityItem): ActivityCategoryKey {
   const t = (act.type || "").toUpperCase();
   const text = act.text || "";
 
-  if (t === "COACH" || text.includes("مربی")) {
+  if (t === "COACH" || text.includes("مربی") || text.includes("کارمند") || text.includes("پرسنل")) {
     return "coaches";
   }
   if (

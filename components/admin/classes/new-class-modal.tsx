@@ -7,6 +7,12 @@ import { useCoaches } from "@/lib/hooks/queries/use-coaches";
 import { normalizeDigits, toPersianDigits } from "@/lib/persian-digits";
 import { X, Loader2, AlertCircle } from "lucide-react";
 import { logActivity } from "@/lib/activities-store";
+import {
+  isStaffMember,
+  getDeletedCoachIds,
+  getLocalCoachOverrides,
+  normalizePersianName,
+} from "@/lib/coaches-store";
 
 interface NewClassModalProps {
   isOpen: boolean;
@@ -62,32 +68,36 @@ export function NewClassModal({
   const coachesList = useMemo(() => {
     const listMap = new Map<string, { id: string; name: string; short: string }>();
 
-    // 1. Standard gym coaches
+    const overrides = getLocalCoachOverrides();
+    const deletedCoachIds = getDeletedCoachIds();
+
+    // 1. Standard gym coaches (exclude if deleted or marked as staff)
     DEFAULT_COACHES.forEach((c) => {
+      const idStr = String(c.id);
+      if (deletedCoachIds.includes(idStr)) return;
+      const norm = normalizePersianName(c.name);
+      const override = overrides[idStr] || overrides[`name_${c.name}`] || overrides[`normname_${norm}`] || {};
+      if (override.is_deleted || isStaffMember({}, override)) return;
       listMap.set(c.name, c);
     });
 
-    // 2. Overrides from local storage
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("titan_gym_coaches_overrides");
-        if (saved) {
-          const overrides = JSON.parse(saved);
-          Object.entries(overrides).forEach(([id, obj]: [string, any]) => {
-            const name = obj.name || obj.full_name;
-            if (name) {
-              listMap.set(name, {
-                id,
-                name,
-                short: name.split(" ")[0],
-              });
-            }
-          });
-        }
-      } catch {}
-    }
+    // 2. Overrides from local storage (excluding staff & deleted)
+    Object.entries(overrides).forEach(([id, obj]: [string, any]) => {
+      if (id.startsWith("name_") || id.startsWith("normname_") || id.startsWith("phone_")) return;
+      if (deletedCoachIds.includes(id)) return;
+      if (obj.is_deleted || isStaffMember({}, obj)) return;
 
-    // 3. Live coaches from backend
+      const name = obj.name || obj.full_name;
+      if (name) {
+        listMap.set(name, {
+          id,
+          name,
+          short: name.split(" ")[0],
+        });
+      }
+    });
+
+    // 3. Live coaches from backend (excluding staff & deleted)
     if (coachesData) {
       let raw: any[] = [];
       if (Array.isArray(coachesData)) {
@@ -108,6 +118,9 @@ export function NewClassModal({
       }
 
       raw.forEach((c: any) => {
+        const idStr = String(c.id);
+        if (deletedCoachIds.includes(idStr)) return;
+
         const name = (
           c.full_name ||
           (c.user && (c.user.full_name || `${c.user.first_name || ""} ${c.user.last_name || ""}`.trim())) ||
@@ -115,13 +128,18 @@ export function NewClassModal({
           c.name
         )?.trim();
 
-        if (name) {
-          listMap.set(name, {
-            id: String(c.id),
-            name,
-            short: (c.first_name || name).split(" ")[0],
-          });
-        }
+        if (!name) return;
+
+        const norm = normalizePersianName(name);
+        const override = overrides[idStr] || overrides[`name_${name}`] || overrides[`normname_${norm}`] || {};
+        if (override.is_deleted || isStaffMember(c, override)) return;
+        if (c.is_active === false && override.status !== "active") return;
+
+        listMap.set(name, {
+          id: idStr,
+          name,
+          short: (c.first_name || name).split(" ")[0],
+        });
       });
     }
 
