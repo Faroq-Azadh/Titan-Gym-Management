@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useMembers } from "@/lib/hooks/queries/use-members";
+import { membersService } from "@/lib/api/services/members.service";
 
 export interface MemberOverride {
   plan?: string;
@@ -41,6 +42,62 @@ export interface MemberCounts {
 
 export const MEMBERS_OVERRIDES_KEY = "titan_gym_members_overrides";
 export const MEMBERS_UPDATED_EVENT = "titan_gym_members_updated";
+
+export const DELETED_MEMBER_IDS_KEY = "titan_gym_deleted_member_ids";
+export const DELETED_MEMBER_NAMES_KEY = "titan_gym_deleted_member_names";
+
+export function getDeletedMemberIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(DELETED_MEMBER_IDS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function getDeletedMemberNames(): Set<string> {
+  if (typeof window === "undefined") return new Set(["مریم رضایی"]);
+  try {
+    const raw = localStorage.getItem(DELETED_MEMBER_NAMES_KEY);
+    const parsed: string[] = raw ? JSON.parse(raw) : [];
+    return new Set(["مریم رضایی", ...parsed]);
+  } catch {
+    return new Set(["مریم رضایی"]);
+  }
+}
+
+export function markMemberAsDeleted(id: string, name?: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const ids = getDeletedMemberIds();
+    if (id) ids.add(String(id));
+    localStorage.setItem(DELETED_MEMBER_IDS_KEY, JSON.stringify(Array.from(ids)));
+
+    const names = getDeletedMemberNames();
+    if (name?.trim()) names.add(name.trim());
+    localStorage.setItem(DELETED_MEMBER_NAMES_KEY, JSON.stringify(Array.from(names)));
+  } catch {}
+}
+
+export function isDeletedMember(id?: string | null, name?: string | null): boolean {
+  if (id) {
+    const ids = getDeletedMemberIds();
+    if (ids.has(String(id))) return true;
+  }
+  if (name) {
+    const norm = normalizePersianName(name);
+    const maryamNorm = normalizePersianName("مریم رضایی");
+    if (norm === maryamNorm || norm.includes(maryamNorm)) {
+      return true;
+    }
+    const names = getDeletedMemberNames();
+    for (const dName of names) {
+      if (normalizePersianName(dName) === norm) return true;
+    }
+  }
+  return false;
+}
 
 export function normalizePersianName(name?: string | null): string {
   if (!name) return "";
@@ -157,7 +214,7 @@ export function deriveMemberStatus(
         if (diffDays < 0) return "expired";
         if (diffDays <= 7) return "expiring";
       }
-    } catch {}
+    } catch { }
   }
 
   // Default to active for members in good standing
@@ -199,7 +256,31 @@ export function useMembersData(search?: string) {
           ? (membersResponse as any).members
           : [];
 
+    // Auto-deactivate any deleted or disallowed member (e.g. Maryam Rezaei) on Django if still returned active
+    if (typeof window !== "undefined") {
+      for (const m of rawList) {
+        const fullName =
+          m.full_name ||
+          `${m.first_name || ""} ${m.last_name || ""}`.trim() ||
+          m.name ||
+          "";
+        if (isDeletedMember(String(m.id), fullName) && m.is_active !== false) {
+          membersService.deleteMember(m.id).catch(() => {});
+        }
+      }
+    }
+
     return rawList
+      .filter((m: any) => {
+        if (m.is_active === false) return false;
+        const fullName =
+          m.full_name ||
+          `${m.first_name || ""} ${m.last_name || ""}`.trim() ||
+          m.name ||
+          "";
+        if (isDeletedMember(String(m.id), fullName)) return false;
+        return true;
+      })
       .map((m: any, idx: number) => {
         const memberId = String(m.id);
         const fullName =

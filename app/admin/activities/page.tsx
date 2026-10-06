@@ -71,7 +71,7 @@ function getActivityConfig(type: string) {
     case "COACH":
       return {
         variant: "purple",
-        badge: "مربی",
+        badge: "مربیان و کارکنان",
         icon: (
           <svg
             viewBox="0 0 24 24"
@@ -253,7 +253,7 @@ export default function AdminActivitiesPage() {
                 گزارش جامع فعالیت‌های پنل
               </h1>
               <p className="mt-[4px] text-[13.5px] text-ink-faint">
-                ثبت کلیه وقایع، ثبت‌نام اعضا و مربیان، تغییرات کلاس‌ها، ویرایش‌ها و هشدارها
+                ثبت کلیه وقایع، ثبت‌نام اعضا، مربیان و کارکنان، تغییرات کلاس‌ها، ویرایش‌ها و هشدارها
               </p>
             </div>
 

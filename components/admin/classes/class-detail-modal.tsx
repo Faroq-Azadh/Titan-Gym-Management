@@ -78,11 +78,12 @@ export function ClassDetailModal({
   const [actionNotice, setActionNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Sync members roster whenever cls changes or modal opens
+  // Sync members roster whenever cls changes, modal opens, or gym members list updates
   useEffect(() => {
     if (cls && isOpen) {
-      const roster = getClassRoster(cls.id, cls.members || []);
+      const roster = getClassRoster(cls.id, cls.members || [], allGymMembers);
       setMembers(roster);
+      saveClassRoster(cls.id, roster, allGymMembers);
       setIsAddingMember(false);
       setActionNotice(null);
       setMemberSearch("");
@@ -90,7 +91,7 @@ export function ClassDetailModal({
       setNewMemberName("");
       setNewMemberPhone("");
     }
-  }, [cls, isOpen]);
+  }, [cls, isOpen, allGymMembers]);
 
   // Filter gym members for selection dropdown
   const filteredGymMembers = useMemo(() => {
@@ -120,7 +121,7 @@ export function ClassDetailModal({
 
   const updateRoster = (newRoster: ClassMember[]) => {
     setMembers(newRoster);
-    saveClassRoster(cls.id, newRoster);
+    saveClassRoster(cls.id, newRoster, allGymMembers);
     if (onUpdateMembers) {
       onUpdateMembers(cls.id, newRoster);
     }
@@ -188,26 +189,29 @@ export function ClassDetailModal({
     try {
       let createdMemberId = `m_${Date.now()}`;
 
-      // If user checked to save in gym database, create them via API
-      if (saveToGymDatabase) {
-        const parts = newMemberName.trim().split(/\s+/);
-        const firstName = parts[0] || "عضو";
-        const lastName = parts.slice(1).join(" ") || "جدید";
-        const todayIso = new Date().toISOString().slice(0, 10);
+      // Create in gym database / Django so the member is synchronized with the members list
+      const parts = newMemberName.trim().split(/\s+/);
+      const firstName = parts[0] || "عضو";
+      const lastName = parts.slice(1).join(" ") || "جدید";
+      const todayIso = new Date().toISOString().slice(0, 10);
 
-        try {
-          const res = await createMemberMutation.mutateAsync({
-            first_name: firstName,
-            last_name: lastName,
-            phone_number: normalizeDigits(newMemberPhone) || undefined,
-            start_date: todayIso,
-          });
-          if (res?.id) {
-            createdMemberId = String(res.id);
-          }
-        } catch {
-          // If backend creation fails, continue and add locally to class
+      try {
+        const res = await createMemberMutation.mutateAsync({
+          first_name: firstName,
+          last_name: lastName,
+          phone_number: normalizeDigits(newMemberPhone) || undefined,
+          start_date: todayIso,
+        });
+        if (res?.id) {
+          createdMemberId = String(res.id);
         }
+      } catch (err: any) {
+        console.error("Failed to register member in gym database:", err);
+        setActionNotice({
+          type: "error",
+          text: "خطا در ثبت عضو در پایگاه اعضا. عضو باید در لیست اعضا ثبت شود تا به کلاس اضافه گردد.",
+        });
+        return;
       }
 
       const newClassMember: ClassMember = {

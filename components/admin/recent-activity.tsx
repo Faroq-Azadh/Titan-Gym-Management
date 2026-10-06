@@ -70,7 +70,7 @@ function getActivityConfig(type: string) {
     case "COACH":
       return {
         variant: "purple",
-        badge: "مربی",
+        badge: "مربیان و کارکنان",
         icon: (
           <svg
             viewBox="0 0 24 24"

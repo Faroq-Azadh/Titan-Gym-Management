@@ -101,9 +101,12 @@ import {
   getPhoneLookupKeys,
   normalizePersianName,
   deriveMemberStatus,
+  markMemberAsDeleted,
+  isDeletedMember,
   MEMBERS_UPDATED_EVENT,
   type MemberOverride,
 } from "@/lib/members-store";
+import { removeMemberFromAllClassRosters } from "@/components/admin/classes/roster-store";
 import { logActivity } from "@/lib/activities-store";
 
 interface PlanOption {
@@ -361,16 +364,11 @@ export function MembersTable({
   const deleteMemberMutation = useDeleteMember();
 
   React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.removeItem("titan_gym_deleted_member_ids");
-      } catch {}
-    }
     const handleSync = () => {
       try {
         const saved = localStorage.getItem("titan_gym_members_overrides");
         if (saved) setLocalOverrides(JSON.parse(saved));
-      } catch {}
+      } catch { }
     };
     window.addEventListener(MEMBERS_UPDATED_EVENT, handleSync);
     window.addEventListener("storage", handleSync);
@@ -385,7 +383,7 @@ export function MembersTable({
       try {
         const saved = localStorage.getItem("titan_gym_members_overrides");
         if (saved) return JSON.parse(saved);
-      } catch {}
+      } catch { }
     }
     return {};
   });
@@ -399,8 +397,31 @@ export function MembersTable({
           ? (membersResponse as any).members
           : [];
 
+    // Auto-deactivate any deleted member (e.g. Maryam Rezaei) in Django backend if still returned active
+    if (typeof window !== "undefined") {
+      for (const m of list) {
+        const fullName =
+          m.full_name ||
+          `${m.first_name || ""} ${m.last_name || ""}`.trim() ||
+          m.name ||
+          "";
+        if (isDeletedMember(String(m.id), fullName) && m.is_active !== false) {
+          deleteMemberMutation.mutate(m.id);
+        }
+      }
+    }
+
     return list
-      .filter((m: any) => m.is_active !== false)
+      .filter((m: any) => {
+        if (m.is_active === false) return false;
+        const fullName =
+          m.full_name ||
+          `${m.first_name || ""} ${m.last_name || ""}`.trim() ||
+          m.name ||
+          "";
+        if (isDeletedMember(String(m.id), fullName)) return false;
+        return true;
+      })
       .map((m: any, idx: number) => {
         const fullName =
           m.full_name ||
@@ -607,12 +628,18 @@ export function MembersTable({
       // 1. Delete or deactivate directly on Django
       await deleteMemberMutation.mutateAsync(id);
 
+      // 2. Mark as deleted in persistent storage
+      markMemberAsDeleted(id, memberName);
+
+      // 3. Purge member from ALL class rosters immediately
+      removeMemberFromAllClassRosters(id, memberName);
+
       logActivity({
         type: "ALERT",
         text: `حذف عضو: ${memberName}`,
       });
 
-      // 2. Refetch directly from Django to keep frontend and backend in 100% sync
+      // 4. Refetch directly from Django to keep frontend and backend in 100% sync
       await queryClient.invalidateQueries({ queryKey: ["members"] });
       await queryClient.refetchQueries({ queryKey: ["members"] });
     } catch (err: any) {
@@ -729,8 +756,8 @@ export function MembersTable({
     // Clean phone number (convert Persian numbers to English digits)
     const rawPhone = formData.phone_number
       ? formData.phone_number
-          .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
-          .replace(/[^\d]/g, "")
+        .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
+        .replace(/[^\d]/g, "")
       : "";
 
     const start_date = formData.start_date || getTodayIso();
@@ -1255,7 +1282,7 @@ export function MembersTable({
                           try {
                             const dataUrl = await compressImage(file);
                             setEditFormData((prev) => ({ ...prev, avatar: dataUrl }));
-                          } catch {}
+                          } catch { }
                         }}
                       />
                     </label>

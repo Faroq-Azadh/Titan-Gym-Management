@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useClasses, useCreateClass, useUpdateClass, useDeleteClass } from "@/lib/hooks/queries/use-classes";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
@@ -17,7 +17,13 @@ import {
   DayOfWeek,
   TimeSlot,
 } from "@/components/admin/classes/types";
-import { getClassRoster, saveClassRoster } from "@/components/admin/classes/roster-store";
+import {
+  getClassRoster,
+  saveClassRoster,
+  purgeDisallowedMembersFromAllClassRosters,
+  ROSTER_UPDATED_EVENT,
+} from "@/components/admin/classes/roster-store";
+import { useMembersData } from "@/lib/members-store";
 import { cn } from "@/lib/utils";
 
 import { toPersianDigits, normalizeDigits } from "@/lib/persian-digits";
@@ -82,10 +88,34 @@ export default function AdminClassesPage() {
     time: TimeSlot;
   }>({ day: "شنبه", time: "۰۸:۰۰" });
 
+  const { members: allGymMembers } = useMembersData();
   const { data: backendClasses } = useClasses();
   const createClassMutation = useCreateClass();
   const updateClassMutation = useUpdateClass();
   const deleteClassMutation = useDeleteClass();
+
+  // Keep class rosters synchronized with live gym members list
+  useEffect(() => {
+    if (allGymMembers && allGymMembers.length > 0) {
+      purgeDisallowedMembersFromAllClassRosters(allGymMembers);
+    } else {
+      purgeDisallowedMembersFromAllClassRosters();
+    }
+  }, [allGymMembers]);
+
+  // Listen to roster updates across tabs and modals
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleRosterUpdate = () => {
+      setRosterRevision((prev) => prev + 1);
+    };
+    window.addEventListener(ROSTER_UPDATED_EVENT, handleRosterUpdate);
+    window.addEventListener("storage", handleRosterUpdate);
+    return () => {
+      window.removeEventListener(ROSTER_UPDATED_EVENT, handleRosterUpdate);
+      window.removeEventListener("storage", handleRosterUpdate);
+    };
+  }, []);
 
   const classes: ClassSession[] = useMemo(() => {
     const list: any[] = Array.isArray(backendClasses)
@@ -135,8 +165,9 @@ export default function AdminClassesPage() {
         else theme = "emerald";
       }
 
-      const roster = getClassRoster(String(c.id));
-      const enrolledCount = roster.length > 0 ? roster.length : (c.booked || 0);
+      // Roster strictly filtered against active gym members
+      const roster = getClassRoster(String(c.id), [], allGymMembers);
+      const enrolledCount = roster.length;
 
       return {
         id: String(c.id),
@@ -159,7 +190,7 @@ export default function AdminClassesPage() {
         isActive: c.is_active !== false,
       };
     });
-  }, [backendClasses, rosterRevision]);
+  }, [backendClasses, allGymMembers, rosterRevision]);
 
   const handleUpdateMembers = (classId: string, updatedMembers: ClassMember[]) => {
     saveClassRoster(classId, updatedMembers);
@@ -188,7 +219,7 @@ export default function AdminClassesPage() {
     editId?: string,
   ) => {
     const day_of_week = DAYS_REV_MAP[classData.day] ?? 0;
-    
+
     // Normalize start_time to HH:MM:SS
     const cleanTime = normalizeDigits(classData.time || "08:00").trim();
     const parts = cleanTime.split(":");

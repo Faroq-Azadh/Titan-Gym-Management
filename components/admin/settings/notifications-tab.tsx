@@ -52,6 +52,8 @@ interface DispatchHistoryItem {
   recipientName: string;
   time: string;
   date: string;
+  isoDate?: string;
+  timestamp?: number;
   status: "delivered" | "sent";
   trackingCode: string;
   previewText: string;
@@ -103,6 +105,74 @@ function toEnglishDigits(str: string): string {
   return res.replace(/\s+/g, "").replace(/[^0-9+]/g, "");
 }
 
+// Helper to get today's ISO date string (YYYY-MM-DD)
+function getTodayIsoString(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Generate Persian date string for today
+function getPersianDateStr(): string {
+  try {
+    return new Intl.DateTimeFormat("fa-IR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(new Date());
+  } catch {
+    return "امروز";
+  }
+}
+
+// Check if a history item was sent TODAY
+function isHistoryItemToday(hist: any): boolean {
+  if (!hist || typeof hist !== "object") return false;
+
+  // Placeholder mock from template is NOT an actual today message
+  if (hist.id === "hist-init-1") return false;
+
+  const todayIso = getTodayIsoString();
+
+  // 1. Explicit ISO date check
+  if (hist.isoDate) {
+    return hist.isoDate === todayIso;
+  }
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const startMs = startOfToday.getTime();
+
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+  const endMs = endOfToday.getTime();
+
+  // 2. Exact timestamp check
+  if (typeof hist.timestamp === "number" && hist.timestamp > 0) {
+    return hist.timestamp >= startMs && hist.timestamp <= endMs;
+  }
+
+  // 3. ID timestamp check (e.g. hist-1728238123000)
+  if (typeof hist.id === "string" && hist.id.startsWith("hist-")) {
+    const rawTs = Number(hist.id.replace("hist-", ""));
+    if (!isNaN(rawTs) && rawTs > 1000000000000) {
+      return rawTs >= startMs && rawTs <= endMs;
+    }
+  }
+
+  // 4. Match Persian date string
+  try {
+    const todayFa = getPersianDateStr();
+    if (hist.date && hist.date === todayFa) {
+      return true;
+    }
+  } catch {}
+
+  return false;
+}
+
 export function NotificationsTab() {
   const { user } = useAuth();
   const { data: gymData } = useGymMe();
@@ -139,30 +209,23 @@ export function NotificationsTab() {
   const [phoneSavedNotice, setPhoneSavedNotice] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
 
-  // Dispatch history
+  // Dispatch history - strictly for TODAY
   const [history, setHistory] = useState<DispatchHistoryItem[]>(() => {
     if (typeof window !== "undefined") {
       try {
         const raw = localStorage.getItem(NOTIF_HISTORY_STORAGE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) return parsed;
+          if (Array.isArray(parsed)) {
+            const todayItems = parsed.filter(isHistoryItemToday);
+            // Purge non-today items immediately from localStorage
+            localStorage.setItem(NOTIF_HISTORY_STORAGE_KEY, JSON.stringify(todayItems));
+            return todayItems;
+          }
         }
       } catch {}
     }
-    return [
-      {
-        id: "hist-init-1",
-        title: "گزارش روزانه مدیریت",
-        phone: "۰۹۱۲۳۴۵۶۷۸۹",
-        recipientName: "مدیر باشگاه تیتان",
-        time: "۱۹:۳۰",
-        date: "امروز",
-        status: "delivered",
-        trackingCode: "SMS-78241",
-        previewText: "گزارش درآمد و تردد روزانه با موفقیت به شماره مدیر تحویل داده شد.",
-      },
-    ];
+    return [];
   });
 
   // Dispatch Modal state
@@ -280,19 +343,6 @@ export function NotificationsTab() {
       console.warn("Save manager phone:", err);
       setPhoneSavedNotice(true);
       setTimeout(() => setPhoneSavedNotice(false), 3000);
-    }
-  };
-
-  // Generate Persian date string
-  const getPersianDateStr = () => {
-    try {
-      return new Intl.DateTimeFormat("fa-IR", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }).format(new Date());
-    } catch {
-      return "امروز";
     }
   };
 
@@ -424,7 +474,26 @@ export function NotificationsTab() {
     }, 1000);
   };
 
-  // Record item in sent history
+  // Ensure non-today history items are purged on mount and across storage updates
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(NOTIF_HISTORY_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const todayOnly = parsed.filter(isHistoryItemToday);
+            if (todayOnly.length !== parsed.length) {
+              localStorage.setItem(NOTIF_HISTORY_STORAGE_KEY, JSON.stringify(todayOnly));
+              setHistory(todayOnly);
+            }
+          }
+        }
+      } catch {}
+    }
+  }, []);
+
+  // Record item in sent history - strictly for TODAY
   const recordHistorySuccess = (
     title: string,
     phone: string,
@@ -437,21 +506,25 @@ export function NotificationsTab() {
       String(now.getMinutes()).padStart(2, "0")
     )}`;
     const dateStr = getPersianDateStr();
+    const todayIso = getTodayIsoString();
 
     const newItem: DispatchHistoryItem = {
-      id: "hist-" + Date.now(),
+      id: "hist-" + now.getTime(),
       title,
       phone,
       recipientName,
       time: timeStr,
       date: dateStr,
+      isoDate: todayIso,
+      timestamp: now.getTime(),
       status: "delivered",
       trackingCode: customCode || `SMS-${Math.floor(10000 + Math.random() * 90000)}`,
       previewText: previewText.slice(0, 100) + "...",
     };
 
     setHistory((prev) => {
-      const updated = [newItem, ...prev.slice(0, 9)];
+      const todayExisting = prev.filter(isHistoryItemToday);
+      const updated = [newItem, ...todayExisting.slice(0, 19)];
       try {
         localStorage.setItem(NOTIF_HISTORY_STORAGE_KEY, JSON.stringify(updated));
       } catch {}
@@ -621,41 +694,73 @@ export function NotificationsTab() {
             <History className="h-[18px] w-[18px] text-primary" />
             <h3 className="text-[14px] font-extrabold text-ink">تاریخچه گزارش‌ها و پیامک‌های ارسالی امروز</h3>
           </div>
-          <span className="text-[12px] font-bold text-ink-faint">
-            {toPersianDigits(history.length)} رویداد ثبت‌شده
-          </span>
+          <div className="flex items-center gap-[12px]">
+            {history.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined" && window.confirm("آیا از پاکسازی تاریخچه پیامک‌های امروز اطمینان دارید؟")) {
+                    setHistory([]);
+                    try {
+                      localStorage.setItem(NOTIF_HISTORY_STORAGE_KEY, JSON.stringify([]));
+                    } catch {}
+                  }
+                }}
+                className="text-[11.5px] font-semibold text-rose-500 hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                پاکسازی امروز
+              </button>
+            )}
+            <span className="text-[12px] font-bold text-ink-faint">
+              {toPersianDigits(history.length)} رویداد امروز
+            </span>
+          </div>
         </div>
 
         <div className="mt-[14px] divide-y divide-border/50">
-          {history.map((hist) => (
-            <div key={hist.id} className="py-[12px] flex flex-wrap items-center justify-between gap-[10px]">
-              <div className="flex items-center gap-[10px]">
-                <span className="flex h-[32px] w-[32px] items-center justify-center rounded-full bg-tint text-primary-dark">
-                  <CheckCheck className="h-[16px] w-[16px]" />
-                </span>
-                <div>
-                  <div className="flex items-center gap-[8px]">
-                    <span className="text-[13px] font-bold text-ink">{hist.title}</span>
-                    <span className="text-[12px] font-semibold text-ink-faint">به: {hist.phone} ({hist.recipientName})</span>
-                  </div>
-                  <div className="mt-[2px] text-[12px] text-ink-faint">{hist.previewText}</div>
-                </div>
+          {history.length === 0 ? (
+            <div className="py-[32px] text-center">
+              <div className="mx-auto flex h-[46px] w-[46px] items-center justify-center rounded-full bg-bg text-ink-faint">
+                <Clock className="h-[22px] w-[22px]" />
               </div>
-
-              <div className="flex items-center gap-[12px] text-[12px] text-ink-faint">
-                <span className="rounded-md bg-bg px-[8px] py-[3px] font-mono font-bold text-ink-faint">
-                  {hist.trackingCode}
-                </span>
-                <span className="flex items-center gap-[4px] font-semibold">
-                  <Clock className="h-[12px] w-[12px]" />
-                  {hist.time}
-                </span>
-                <span className="rounded-full bg-emerald-500/10 px-[8px] py-[2px] text-[11px] font-bold text-emerald-600">
-                  ارسال‌شده
-                </span>
+              <div className="mt-[10px] text-[13.5px] font-bold text-ink">
+                هیچ گزارش یا پیامکی در تاریخ امروز ثبت نشده است
+              </div>
+              <div className="mt-[4px] text-[12px] text-ink-faint">
+                با ارسال پیامک یا ارسال خلاصه گزارش روزانه، اعلان‌های ارسالی امروز در این بخش ثبت خواهند شد.
               </div>
             </div>
-          ))}
+          ) : (
+            history.map((hist) => (
+              <div key={hist.id} className="py-[12px] flex flex-wrap items-center justify-between gap-[10px]">
+                <div className="flex items-center gap-[10px]">
+                  <span className="flex h-[32px] w-[32px] items-center justify-center rounded-full bg-tint text-primary-dark">
+                    <CheckCheck className="h-[16px] w-[16px]" />
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-[8px]">
+                      <span className="text-[13px] font-bold text-ink">{hist.title}</span>
+                      <span className="text-[12px] font-semibold text-ink-faint">به: {hist.phone} ({hist.recipientName})</span>
+                    </div>
+                    <div className="mt-[2px] text-[12px] text-ink-faint">{hist.previewText}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-[12px] text-[12px] text-ink-faint">
+                  <span className="rounded-md bg-bg px-[8px] py-[3px] font-mono font-bold text-ink-faint">
+                    {hist.trackingCode}
+                  </span>
+                  <span className="flex items-center gap-[4px] font-semibold">
+                    <Clock className="h-[12px] w-[12px]" />
+                    {hist.time}
+                  </span>
+                  <span className="rounded-full bg-emerald-500/10 px-[8px] py-[2px] text-[11px] font-bold text-emerald-600">
+                    ارسال‌شده
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

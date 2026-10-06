@@ -94,7 +94,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       badge: activeMembersBadge,
     },
     {
-      title: "مربیان",
+      title: "مربیان و کارکنان",
       href: "/admin/coaches",
       icon: (
         <svg

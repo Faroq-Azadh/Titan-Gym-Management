@@ -83,7 +83,20 @@ function getLocalBookings(): BookingRosterRow[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(LOCAL_BOOKINGS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed: BookingRosterRow[] = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const filtered = parsed.filter((b) => {
+        const name = (b.member_name || "").trim();
+        if (name.includes("مریم رضایی") || name.includes("مریم حسینی")) return false;
+        return true;
+      });
+      if (filtered.length !== parsed.length) {
+        saveLocalBookings(filtered);
+      }
+      return filtered;
+    }
+    return [];
   } catch {
     return [];
   }

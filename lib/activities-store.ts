@@ -30,7 +30,7 @@ export interface ActivityCategoryConfig {
 export const ACTIVITY_CATEGORIES: ActivityCategoryConfig[] = [
   { id: "all", label: "همه فعالیت‌ها" },
   { id: "members", label: "ثبت‌نام اعضا" },
-  { id: "coaches", label: "مربیان" },
+  { id: "coaches", label: "مربیان و کارکنان" },
   { id: "classes", label: "کلاس‌ها و تکمیل ظرفیت" },
   { id: "edits", label: "ویرایش‌ها" },
   { id: "alerts", label: "حذف و هشدارها" },

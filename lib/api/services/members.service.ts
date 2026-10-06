@@ -152,17 +152,17 @@ export const membersService = {
       await apiClient.delete(ENDPOINTS.MEMBERS.DELETE(id), { requiresAuth: true });
       return;
     } catch (err: any) {
-      const status = err?.status || err?.response?.status || err?.statusCode;
-      // 2. If DELETE is not supported by DRF (405 Method Not Allowed), soft-delete via PATCH is_active: false
-      if (status === 405 || status === 404 || status === 403 || status === 400) {
+      // 2. If DELETE fails or is not supported by DRF (405), deactivate via PATCH is_active: false
+      try {
         await apiClient.patch(
           ENDPOINTS.MEMBERS.UPDATE(id),
           { is_active: false },
           { requiresAuth: true }
         );
         return;
+      } catch (patchErr) {
+        throw patchErr || err;
       }
-      throw err;
     }
   },
 };
