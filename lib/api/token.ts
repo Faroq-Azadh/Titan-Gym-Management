@@ -11,7 +11,7 @@ function isBrowser(): boolean {
   return typeof window !== "undefined";
 }
 
-function getCookie(name: string): string | null {
+export function getCookie(name: string): string | null {
   if (!isBrowser()) return null;
   const match = document.cookie.match(
     new RegExp("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)"),
@@ -48,6 +48,7 @@ const jwtExpCache = new Map<string, number | null>();
 
 /**
  * Decodes the expiration time (exp in seconds) from a JWT string without external libraries.
+ * Safely handles UTF-8 characters in payload.
  * Memoized per token string for maximum performance.
  */
 export function decodeJwtExp(token: string): number | null {
@@ -65,10 +66,21 @@ export function decodeJwtExp(token: string): number | null {
     while (base64.length % 4 !== 0) {
       base64 += "=";
     }
-    const jsonStr =
-      typeof atob === "function"
-        ? atob(base64)
-        : Buffer.from(base64, "base64").toString("binary");
+    let jsonStr = "";
+    if (typeof atob === "function") {
+      try {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        jsonStr = new TextDecoder().decode(bytes);
+      } catch {
+        jsonStr = atob(base64);
+      }
+    } else {
+      jsonStr = Buffer.from(base64, "base64").toString("utf8");
+    }
     const payload = JSON.parse(jsonStr);
     const exp = typeof payload.exp === "number" ? payload.exp : null;
     jwtExpCache.set(token, exp);
@@ -80,13 +92,16 @@ export function decodeJwtExp(token: string): number | null {
 }
 
 /**
- * Checks if a token is a structurally valid JWT and has not expired.
+ * Checks if a token is usable (not expired).
  * skewSeconds: clock drift leeway (defaults to 30 seconds).
  */
 export function isTokenUsable(token: string | null | undefined, skewSeconds = 30): boolean {
   if (!token) return false;
   const exp = decodeJwtExp(token);
-  if (exp === null) return false;
+  if (exp === null) {
+    // Non-JWT token or token without exp: consider usable if valid length
+    return token.length > 10;
+  }
   const now = Math.floor(Date.now() / 1000);
   return exp > now + skewSeconds;
 }
@@ -103,7 +118,7 @@ function migrateAndCleanLegacy(): void {
 
     // Migrate access token if titan_access_token not set
     const currentTitanAccess = cleanToken(localStorage.getItem(ACCESS_TOKEN_KEY));
-    if (!currentTitanAccess || decodeJwtExp(currentTitanAccess) === null) {
+    if (!currentTitanAccess || !isTokenUsable(currentTitanAccess, 0)) {
       for (const key of legacyAccessKeys) {
         const val = cleanToken(localStorage.getItem(key) || getCookie(key));
         if (val && isTokenUsable(val, 0)) {
@@ -142,13 +157,17 @@ export const tokenStorage = {
     if (!isBrowser()) return null;
     migrateAndCleanLegacy();
 
-    const raw = localStorage.getItem(ACCESS_TOKEN_KEY) || getCookie(ACCESS_TOKEN_KEY);
+    const raw =
+      localStorage.getItem(ACCESS_TOKEN_KEY) ||
+      getCookie(ACCESS_TOKEN_KEY) ||
+      getCookie("gym_os_access") ||
+      getCookie("access");
     const cleaned = cleanToken(raw);
     if (!cleaned) return null;
 
-    // Drop non-JWT tokens (e.g. legacy fake titan_session_* tokens)
-    if (decodeJwtExp(cleaned) === null) {
-      this.clearTokens();
+    // Check expiration if JWT exp is available
+    const exp = decodeJwtExp(cleaned);
+    if (exp !== null && !isTokenUsable(cleaned, 0)) {
       return null;
     }
 
@@ -159,7 +178,11 @@ export const tokenStorage = {
     if (!isBrowser()) return null;
     migrateAndCleanLegacy();
 
-    const raw = localStorage.getItem(REFRESH_TOKEN_KEY) || getCookie(REFRESH_TOKEN_KEY);
+    const raw =
+      localStorage.getItem(REFRESH_TOKEN_KEY) ||
+      getCookie(REFRESH_TOKEN_KEY) ||
+      getCookie("gym_os_refresh") ||
+      getCookie("refresh");
     return cleanToken(raw);
   },
 

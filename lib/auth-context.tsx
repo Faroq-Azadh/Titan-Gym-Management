@@ -205,12 +205,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (updated || payload) as User;
   }, []);
 
-  const status: AuthStatus = isLoading
-    ? "loading"
-    : user && tokenStorage.hasValidSession()
-      ? "authenticated"
-      : "unauthenticated";
-  const isAuthenticated = status === "authenticated";
+  const status: AuthStatus =
+    isLoading || (!user && tokenStorage.hasValidSession())
+      ? "loading"
+      : user && tokenStorage.hasValidSession()
+        ? "authenticated"
+        : "unauthenticated";
+  const isAuthenticated = Boolean(user && tokenStorage.hasValidSession());
 
   return (
     <AuthContext.Provider

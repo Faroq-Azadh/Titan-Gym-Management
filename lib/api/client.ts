@@ -3,7 +3,7 @@ import { parseDjangoError, ApiError } from "./errors";
 import { tokenStorage, isTokenUsable } from "./token";
 import type { RequestConfig } from "./types";
 
-class ApiClient {
+export class ApiClient {
   private customBaseUrl?: string;
   private refreshPromise: Promise<string | null> | null = null;
 
@@ -120,6 +120,7 @@ class ApiClient {
       timeoutMs = 15000,
       headers: customHeaders = {},
       _retryCount = 0,
+      credentials = "include",
       ...customConfig
     } = config;
 
@@ -156,6 +157,7 @@ class ApiClient {
     const executeFetch = async (): Promise<Response> => {
       try {
         return await fetch(url, {
+          credentials,
           ...customConfig,
           headers,
           signal: controller.signal,

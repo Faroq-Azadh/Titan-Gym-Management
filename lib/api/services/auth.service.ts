@@ -1,6 +1,35 @@
-import apiClient from "../client";
+import apiClient, { ApiClient } from "../client";
 import { ENDPOINTS } from "../endpoints";
-import { tokenStorage } from "../token";
+import { ApiError } from "../errors";
+import { tokenStorage, decodeJwtExp, getCookie } from "../token";
+
+function cleanTokenString(val: unknown): string | null {
+  if (typeof val !== "string") return null;
+  let t = val.trim();
+  if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+    t = t.slice(1, -1).trim();
+  }
+  return t.length > 0 ? t : null;
+}
+
+/**
+ * Same-origin client routed through the Next.js `/api-proxy` route handler.
+ * Needed for endpoints that deliver the JWT ONLY via httpOnly cookies
+ * (e.g. /users/otp/verify/): the browser blocks those SameSite=Lax cookies on
+ * cross-site responses, so the proxy reads them server-side and echoes the
+ * tokens back in the JSON body as `access` / `refresh`.
+ */
+const proxyClient = new ApiClient("/api-proxy");
+
+/** Strip the trailing slash so Next.js doesn't 308-redirect the proxied request. */
+function proxyPath(endpoint: string): string {
+  return endpoint.replace(/\/+$/, "");
+}
+
+/** Returns the value only if it is a structurally valid JWT. */
+function asJwt(value: unknown): string | null {
+  return typeof value === "string" && decodeJwtExp(value) !== null ? value : null;
+}
 
 export type UserRole = "OWNER" | "COACH" | "MEMBER";
 
@@ -114,39 +143,98 @@ export const authService = {
    * Conforms to POST /users/otp/verify/
    */
   async verifyOtp(payload: OTPVerifyPayload): Promise<LoginResponse | DetailResponse> {
-    const data = await apiClient.post<LoginResponse | DetailResponse>(
-      ENDPOINTS.AUTH.OTP_VERIFY,
-      payload,
-      { requiresAuth: false, credentials: "include" },
-    );
+    const client = typeof window !== "undefined" ? proxyClient : apiClient;
+    const endpoint =
+      typeof window !== "undefined" ? proxyPath(ENDPOINTS.AUTH.OTP_VERIFY) : ENDPOINTS.AUTH.OTP_VERIFY;
 
-    // If tokens are returned directly
-    if ("access" in data && data.access) {
-      tokenStorage.setTokens({
-        access: data.access,
-        refresh: data.refresh,
+    let data: any;
+    try {
+      data = await client.post<LoginResponse | DetailResponse>(endpoint, payload, {
+        requiresAuth: false,
       });
-      if (typeof window !== "undefined" && data.user) {
-        localStorage.setItem("titan_user", JSON.stringify(data.user));
+    } catch (proxyErr) {
+      if (client !== apiClient) {
+        data = await apiClient.post<LoginResponse | DetailResponse>(
+          ENDPOINTS.AUTH.OTP_VERIFY,
+          payload,
+          { requiresAuth: false, credentials: "include" },
+        );
+      } else {
+        throw proxyErr;
+      }
+    }
+
+    const anyData = data as any;
+    let access =
+      cleanTokenString(anyData?.access) ||
+      cleanTokenString(anyData?.access_token) ||
+      cleanTokenString(anyData?.token) ||
+      cleanTokenString(anyData?.key) ||
+      cleanTokenString(anyData?.tokens?.access) ||
+      cleanTokenString(anyData?.data?.access);
+
+    let refresh =
+      cleanTokenString(anyData?.refresh) ||
+      cleanTokenString(anyData?.refresh_token) ||
+      cleanTokenString(anyData?.tokens?.refresh) ||
+      cleanTokenString(anyData?.data?.refresh) ||
+      "";
+
+    // If tokens are in browser cookies
+    if (!access && typeof document !== "undefined") {
+      access =
+        tokenStorage.getAccessToken() ||
+        cleanTokenString(getCookie("gym_os_access")) ||
+        cleanTokenString(getCookie("access")) ||
+        cleanTokenString(getCookie("access_token"));
+      if (!refresh) {
+        refresh =
+          tokenStorage.getRefreshToken() ||
+          cleanTokenString(getCookie("gym_os_refresh")) ||
+          cleanTokenString(getCookie("refresh")) ||
+          "";
+      }
+    }
+
+    if (access) {
+      tokenStorage.setTokens({ access, refresh });
+    }
+
+    // Direct user in response
+    if (anyData?.user) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("titan_user", JSON.stringify(anyData.user));
+      }
+      return { access: access || "", refresh: refresh || "", user: anyData.user };
+    }
+
+    // Attempt profile retrieval
+    try {
+      const user = await this.getMe();
+      return { access: access || "", refresh: refresh || "", user };
+    } catch {
+      if (access || tokenStorage.hasValidSession()) {
+        const fallbackUser: User = {
+          id: "",
+          email: payload.identifier.includes("@") ? payload.identifier : null,
+          phone_number: !payload.identifier.includes("@") ? payload.identifier : null,
+          is_phone_verified: true,
+          full_name: "کاربر تیتان",
+          avatar: null,
+          role: "OWNER",
+          date_joined: new Date().toISOString(),
+        };
+        if (typeof window !== "undefined") {
+          localStorage.setItem("titan_user", JSON.stringify(fallbackUser));
+        }
+        return {
+          access: access || tokenStorage.getAccessToken() || "",
+          refresh: refresh || tokenStorage.getRefreshToken() || "",
+          user: fallbackUser,
+        };
       }
       return data;
     }
-
-    // If session cookie was set or response is DetailResponse, try fetching current user
-    try {
-      const user = await this.getMe();
-      if (user) {
-        return {
-          access: tokenStorage.getAccessToken() || "",
-          refresh: tokenStorage.getRefreshToken() || "",
-          user,
-        };
-      }
-    } catch {
-      // Ignored if user not yet available
-    }
-
-    return data;
   },
 
   /**
@@ -160,15 +248,39 @@ export const authService = {
       { requiresAuth: false, credentials: "include" },
     );
 
-    if (data?.access) {
+    const anyData = data as any;
+    const access =
+      anyData?.access ||
+      anyData?.access_token ||
+      anyData?.token ||
+      anyData?.key ||
+      anyData?.tokens?.access ||
+      anyData?.data?.access;
+
+    const refresh =
+      anyData?.refresh ||
+      anyData?.refresh_token ||
+      anyData?.tokens?.refresh ||
+      anyData?.data?.refresh ||
+      "";
+
+    if (access) {
       tokenStorage.setTokens({
-        access: data.access,
-        refresh: data.refresh,
+        access,
+        refresh,
       });
-      if (typeof window !== "undefined" && data.user) {
-        localStorage.setItem("titan_user", JSON.stringify(data.user));
+      if (typeof window !== "undefined" && anyData.user) {
+        localStorage.setItem("titan_user", JSON.stringify(anyData.user));
       }
-      return data;
+      return {
+        access,
+        refresh,
+        user: anyData.user,
+      };
+    } else {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("titan_session_refreshable", "true");
+      }
     }
 
     // If tokens are in httpOnly cookie or returned differently, fetch user

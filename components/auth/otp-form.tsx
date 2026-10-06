@@ -16,6 +16,7 @@ import {
 } from "@/lib/validations/login";
 import { normalizeDigits, toPersianDigits } from "@/lib/persian-digits";
 import { useAuth } from "@/lib/auth-context";
+import { tokenStorage } from "@/lib/api/token";
 import { ApiError } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
@@ -124,10 +125,10 @@ export function OtpForm({ onVerify, onSuccess }: OtpFormProps) {
         onSuccess();
       } else {
         const user = "user" in res ? res.user : null;
-        if (user?.role === "OWNER" || user?.role === "COACH") {
+        if (user || tokenStorage.hasValidSession()) {
           router.push("/admin");
         } else {
-          router.push("/admin");
+          setOtpError("کد تأیید شد اما بارگذاری اطلاعات حساب با مشکل مواجه شد. لطفاً دوباره امتحان کنید.");
         }
       }
     } catch (err) {
