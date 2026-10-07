@@ -1,41 +1,18 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
-import { useClasses, useBookings } from "@/lib/hooks/queries/use-classes";
-import { useMembersData } from "@/lib/members-store";
-import { getClassRoster, ROSTER_UPDATED_EVENT } from "@/components/admin/classes/roster-store";
-import { INITIAL_CLASSES, type DayOfWeek } from "@/components/admin/classes/types";
+import { useGymClasses } from "@/lib/hooks/use-gym-classes";
+import { getClassRoster } from "@/components/admin/classes/roster-store";
 import type { TodaysClass } from "@/lib/api/services/gyms.service";
-import { toPersianDigits } from "@/lib/persian-digits";
+import { toPersianDigits, normalizeDigits } from "@/lib/persian-digits";
 import { cn } from "@/lib/utils";
-import { Users, ChevronLeft } from "lucide-react";
-
-interface TodayClassItem {
-  id: string;
-  title: string;
-  coach_name: string;
-  start_time: string;
-  capacity: number;
-  booked: number;
-  roster: any[];
-}
+import { Users, ChevronLeft, Plus } from "lucide-react";
 
 interface TodayClassesProps {
   classes?: TodaysClass[];
   isLoading?: boolean;
 }
-
-const DAYS_MAP: Record<number, DayOfWeek> = {
-  0: "شنبه",
-  1: "یکشنبه",
-  2: "دوشنبه",
-  3: "سه‌شنبه",
-  4: "چهارشنبه",
-  5: "پنجشنبه",
-  6: "جمعه",
-};
 
 function getMemberInitials(name?: string): string {
   if (!name) return "ع";
@@ -47,45 +24,21 @@ function getMemberInitials(name?: string): string {
 }
 
 export function TodayClasses({ classes: propClasses, isLoading: propLoading }: TodayClassesProps) {
-  const [revision, setRevision] = useState(0);
+  const {
+    todayClasses: hookTodayClasses,
+    isLoading: hookLoading,
+    allGymMembers,
+    todayDayName,
+  } = useGymClasses();
 
-  const { data: dashboard, isLoading: queryLoading } = useOwnerDashboard();
-  const { data: backendClasses, isLoading: classesLoading } = useClasses();
-  const { data: bookingsData, isLoading: bookingsLoading } = useBookings();
-  const { members: allGymMembers, isLoading: membersLoading } = useMembersData();
+  const isLoading = propLoading ?? hookLoading;
 
-  const isLoading = propLoading ?? (queryLoading && classesLoading);
-
-  // Re-fetch / re-compute whenever class rosters or bookings update
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleUpdate = () => {
-      setRevision((prev) => prev + 1);
-    };
-    window.addEventListener(ROSTER_UPDATED_EVENT, handleUpdate);
-    window.addEventListener("titan_gym_roster_updated", handleUpdate);
-    window.addEventListener("titan_gym_bookings_updated", handleUpdate);
-    window.addEventListener("storage", handleUpdate);
-    return () => {
-      window.removeEventListener(ROSTER_UPDATED_EVENT, handleUpdate);
-      window.removeEventListener("titan_gym_roster_updated", handleUpdate);
-      window.removeEventListener("titan_gym_bookings_updated", handleUpdate);
-      window.removeEventListener("storage", handleUpdate);
-    };
-  }, []);
-
-  // Today's day index in Persian week (0=شنبه, 1=یکشنبه, ..., 4=چهارشنبه, ..., 6=جمعه)
-  const todayDayIdx = useMemo(() => {
-    return (new Date().getDay() + 1) % 7;
-  }, []);
-
-  const todayDayName = DAYS_MAP[todayDayIdx] || "چهارشنبه";
-
-  const formatTime = (timeStr: string) => {
+  const formatTime = (timeStr?: string) => {
     if (!timeStr) return { hour: "۰۰:۰۰", period: "روز" };
-    const parts = timeStr.split(":");
+    const norm = normalizeDigits(timeStr);
+    const parts = norm.split(":");
     const hourNum = parseInt(parts[0], 10) || 0;
-    const minute = parts[1] || "00";
+    const minute = (parts[1] || "00").slice(0, 2);
     const hourFormatted = `${toPersianDigits(parts[0].padStart(2, "0"))}:${toPersianDigits(minute)}`;
     let period = "صبح";
     if (hourNum >= 12 && hourNum < 17) period = "عصر";
@@ -93,9 +46,9 @@ export function TodayClasses({ classes: propClasses, isLoading: propLoading }: T
     return { hour: hourFormatted, period };
   };
 
-  // Compile today's classes and calculate exact member enrollment for each
-  const todayClassesList: TodayClassItem[] = useMemo(() => {
-    // 1. If explicit props passed, use them
+  // Compile today's classes from the unified source of truth
+  const todayClassesList = useMemo(() => {
+    // 1. If explicit props were passed, use and enrich them
     if (propClasses && propClasses.length > 0) {
       return propClasses.map((c) => {
         const roster = getClassRoster(String(c.id), [], allGymMembers);
@@ -112,81 +65,21 @@ export function TodayClasses({ classes: propClasses, isLoading: propLoading }: T
       });
     }
 
-    // 2. If dashboard has todays_classes, use and enrich them
-    if (dashboard?.todays_classes && dashboard.todays_classes.length > 0) {
-      return dashboard.todays_classes.map((c) => {
-        const roster = getClassRoster(String(c.id), [], allGymMembers);
-        const bookedCount = Math.max(c.booked || 0, roster.length);
-        return {
-          id: String(c.id),
-          title: c.title,
-          coach_name: c.coach_name || "مربی باشگاه",
-          start_time: c.start_time,
-          capacity: c.capacity || 20,
-          booked: bookedCount,
-          roster,
-        };
-      });
-    }
-
-    // 3. From backend classes templates matching today's day of week
-    const backendList = Array.isArray(backendClasses)
-      ? backendClasses
-      : Array.isArray((backendClasses as any)?.results)
-        ? (backendClasses as any).results
-        : Array.isArray((backendClasses as any)?.classes)
-          ? (backendClasses as any).classes
-          : [];
-
-    const todayBackend = backendList.filter(
-      (c: any) => c && c.is_active !== false && c.day_of_week === todayDayIdx
-    );
-
-    if (todayBackend.length > 0) {
-      return todayBackend.map((c: any) => {
-        const roster = getClassRoster(String(c.id), [], allGymMembers);
-        const bookedCount = Math.max(c.booked || 0, roster.length);
-        return {
-          id: String(c.id),
-          title: c.title,
-          coach_name: c.coach_name || "مربی باشگاه",
-          start_time: c.start_time || "۰۸:۰۰",
-          capacity: c.capacity || 20,
-          booked: bookedCount,
-          roster,
-        };
-      });
-    }
-
-    // 4. Fallback to INITIAL_CLASSES for today's day of week
-    const initialForToday = INITIAL_CLASSES.filter(
-      (c) => c.day === todayDayName || c.day.replace("‌", "") === todayDayName.replace("‌", "")
-    );
-
-    const targetList = initialForToday.length > 0 ? initialForToday : INITIAL_CLASSES.slice(0, 3);
-
-    return targetList.map((c) => {
-      const roster = getClassRoster(c.id, c.members || [], allGymMembers);
+    // 2. Use unified todayClasses strictly matching /admin/classes
+    return hookTodayClasses.map((c) => {
+      const roster = c.members || [];
       const bookedCount = Math.max(c.enrolled || 0, roster.length);
       return {
-        id: c.id,
+        id: String(c.id),
         title: c.name,
         coach_name: c.coach || "مربی باشگاه",
-        start_time: c.time || "۰۸:۰۰",
+        start_time: c.rawStartTime || "08:00",
         capacity: c.capacity || 20,
         booked: bookedCount,
         roster,
       };
     });
-  }, [
-    propClasses,
-    dashboard?.todays_classes,
-    backendClasses,
-    todayDayIdx,
-    todayDayName,
-    allGymMembers,
-    revision,
-  ]);
+  }, [propClasses, hookTodayClasses, allGymMembers]);
 
   // Total members enrolled across all of today's classes
   const totalMembersToday = useMemo(() => {
@@ -214,7 +107,10 @@ export function TodayClasses({ classes: propClasses, isLoading: propLoading }: T
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-[22px] py-[20px]">
         <div>
-          <h3 className="text-[16px] font-extrabold text-ink">کلاس‌های امروز</h3>
+          <div className="flex items-center gap-[8px]">
+            <h3 className="text-[16px] font-extrabold text-ink">کلاس‌های امروز</h3>
+            <span className="text-[12px] font-bold text-ink-faint">({todayDayName})</span>
+          </div>
           <div className="mt-[3px] flex items-center gap-[6px] text-[12.5px] text-ink-faint">
             <span>{toPersianDigits(todayClassesList.length)} جلسه فعال</span>
             <span>·</span>
@@ -231,7 +127,7 @@ export function TodayClasses({ classes: propClasses, isLoading: propLoading }: T
             href="/admin/classes"
             className="inline-flex items-center gap-[3px] text-[12px] font-bold text-ink-faint transition-colors hover:text-ink"
           >
-            <span>برنامه</span>
+            <span>برنامه هفتگی</span>
             <ChevronLeft className="h-[14px] w-[14px]" />
           </Link>
         </div>
@@ -240,8 +136,23 @@ export function TodayClasses({ classes: propClasses, isLoading: propLoading }: T
       {/* Class List */}
       <div className="px-[22px] pt-[6px] pb-[20px]">
         {todayClassesList.length === 0 ? (
-          <div className="py-8 text-center text-[13.5px] text-ink-faint">
-            هیچ کلاسی برای امروز ثبت نشده است.
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg text-ink-faint border border-border">
+              <Users className="h-6 w-6" />
+            </div>
+            <p className="mt-3 text-[14px] font-bold text-ink">
+              هیچ کلاسی برای امروز ({todayDayName}) ثبت نشده است
+            </p>
+            <p className="mt-1 text-[12.5px] text-ink-faint max-w-xs">
+              کلاس‌های تعریف شده در صفحه برنامه هفتگی نمایش داده می‌شوند.
+            </p>
+            <Link
+              href="/admin/classes"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-1.5 text-[12.5px] font-bold text-white transition-all hover:bg-primary-dark"
+            >
+              <Plus className="h-4 w-4" />
+              <span>مشاهده و افزودن کلاس</span>
+            </Link>
           </div>
         ) : (
           todayClassesList.map((item, index) => {
@@ -264,8 +175,8 @@ export function TodayClasses({ classes: propClasses, isLoading: propLoading }: T
               if (previewMembers.length < 4) {
                 previewMembers.push({
                   id: String(rm.id),
-                  name: rm.name || "عضو باشگاه",
-                  initials: getMemberInitials(rm.name),
+                  name: rm.name || rm.fullName || "عضو باشگاه",
+                  initials: getMemberInitials(rm.name || rm.fullName),
                   avatarUrl: rm.avatar && rm.avatar.startsWith("http") ? rm.avatar : undefined,
                 });
               }

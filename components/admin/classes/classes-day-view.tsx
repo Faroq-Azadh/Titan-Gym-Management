@@ -27,10 +27,13 @@ export function ClassesDayView({
   onSelectClass,
   onAddNewClass,
 }: ClassesDayViewProps) {
-  const [activeDay, setActiveDay] = useState<DayOfWeek>("شنبه");
+  const todayDayIdx = (new Date().getDay() + 1) % 7;
+  const todayDayName = DAYS[todayDayIdx] || "چهارشنبه";
+  const [activeDay, setActiveDay] = useState<DayOfWeek>(todayDayName);
 
+  const normalizeDay = (d?: string) => (d || "").replace(/[\u200C\s]/g, "").trim();
   const dayClasses = classes
-    .filter((c) => c.day === activeDay)
+    .filter((c) => normalizeDay(c.day) === normalizeDay(activeDay))
     .sort((a, b) => a.time.localeCompare(b.time));
 
   const getThemeStyles = (theme: ClassSession["theme"]) => {

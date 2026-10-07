@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useClasses, useCreateClass, useUpdateClass, useDeleteClass } from "@/lib/hooks/queries/use-classes";
+import { useState, useEffect } from "react";
+import { useCreateClass, useUpdateClass, useDeleteClass } from "@/lib/hooks/queries/use-classes";
+import { useGymClasses, saveLocalClassMeta, DAYS_REV_MAP } from "@/lib/hooks/use-gym-classes";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { ClassesKpi } from "@/components/admin/classes/classes-kpi";
@@ -13,22 +14,18 @@ import { NewClassModal } from "@/components/admin/classes/new-class-modal";
 import {
   ClassSession,
   ClassMember,
-  INITIAL_CLASSES,
   DayOfWeek,
   TimeSlot,
 } from "@/components/admin/classes/types";
 import {
-  getClassRoster,
   saveClassRoster,
   purgeDisallowedMembersFromAllClassRosters,
   ROSTER_UPDATED_EVENT,
 } from "@/components/admin/classes/roster-store";
 import {
-  getDeletedClassIds,
   markClassAsDeleted,
   unmarkClassAsDeleted,
 } from "@/lib/api/services/classes.service";
-import { useMembersData } from "@/lib/members-store";
 import { cn } from "@/lib/utils";
 
 import { toPersianDigits, normalizeDigits } from "@/lib/persian-digits";
@@ -36,65 +33,18 @@ import { logActivity } from "@/lib/activities-store";
 
 type ViewMode = "month" | "week" | "day";
 
-const DAYS_MAP: Record<number, DayOfWeek> = {
-  0: "شنبه",
-  1: "یکشنبه",
-  2: "دوشنبه",
-  3: "سه‌شنبه",
-  4: "چهارشنبه",
-  5: "پنجشنبه",
-  6: "جمعه",
-};
-
-const DAYS_REV_MAP: Record<string, number> = {
-  "شنبه": 0,
-  "یکشنبه": 1,
-  "دوشنبه": 2,
-  "سه‌شنبه": 3,
-  "سه شنبه": 3,
-  "چهارشنبه": 4,
-  "پنجشنبه": 5,
-  "پنج‌شنبه": 5,
-  "جمعه": 6,
-};
-
-const LOCAL_CLASSES_META_KEY = "titan_gym_classes_meta";
-
-function getLocalClassesMeta(): Record<string, any> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(LOCAL_CLASSES_META_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveLocalClassMeta(id: string, meta: any): void {
-  if (typeof window === "undefined") return;
-  try {
-    const current = getLocalClassesMeta();
-    current[id] = { ...(current[id] || {}), ...meta };
-    localStorage.setItem(LOCAL_CLASSES_META_KEY, JSON.stringify(current));
-  } catch {
-    // Ignore storage errors
-  }
-}
-
 export default function AdminClassesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [selectedClass, setSelectedClass] = useState<ClassSession | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassSession | null>(null);
-  const [rosterRevision, setRosterRevision] = useState(0);
   const [defaultSlot, setDefaultSlot] = useState<{
     day: DayOfWeek;
     time: TimeSlot;
   }>({ day: "شنبه", time: "۰۸:۰۰" });
 
-  const { members: allGymMembers } = useMembersData();
-  const { data: backendClasses } = useClasses();
+  const { classes, allGymMembers, refetch } = useGymClasses();
   const createClassMutation = useCreateClass();
   const updateClassMutation = useUpdateClass();
   const deleteClassMutation = useDeleteClass();
@@ -108,103 +58,8 @@ export default function AdminClassesPage() {
     }
   }, [allGymMembers]);
 
-  // Listen to roster updates across tabs and modals
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleRosterUpdate = () => {
-      setRosterRevision((prev) => prev + 1);
-    };
-    window.addEventListener(ROSTER_UPDATED_EVENT, handleRosterUpdate);
-    window.addEventListener("storage", handleRosterUpdate);
-    return () => {
-      window.removeEventListener(ROSTER_UPDATED_EVENT, handleRosterUpdate);
-      window.removeEventListener("storage", handleRosterUpdate);
-    };
-  }, []);
-
-  const classes: ClassSession[] = useMemo(() => {
-    const list: any[] = Array.isArray(backendClasses)
-      ? backendClasses
-      : Array.isArray((backendClasses as any)?.results)
-        ? (backendClasses as any).results
-        : Array.isArray((backendClasses as any)?.classes)
-          ? (backendClasses as any).classes
-          : [];
-
-    const deletedIds = getDeletedClassIds();
-    const activeList = list.filter(
-      (c) => c && c.is_active !== false && !deletedIds.has(String(c.id))
-    );
-
-    const localMeta = getLocalClassesMeta();
-
-    return activeList.map((c) => {
-      const day = DAYS_MAP[c.day_of_week] || "شنبه";
-      const rawStart = c.start_time ? c.start_time.slice(0, 5) : "08:00";
-      const time = toPersianDigits(rawStart) as TimeSlot;
-
-      // Calculate end time
-      let endTime = "09:30";
-      if (c.start_time && c.duration_minutes) {
-        const [h, m] = c.start_time.split(":").map(Number);
-        const totalEnd = (h || 0) * 60 + (m || 0) + (c.duration_minutes || 60);
-        const endH = Math.floor(totalEnd / 60) % 24;
-        const endM = totalEnd % 60;
-        endTime = toPersianDigits(`${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`);
-      }
-
-      const coachName = c.coach_name || (c.coach ? "مربی اختصاصی" : "بدون مربی");
-      const meta = localMeta[String(c.id)] || {};
-
-      let category = meta.category;
-      if (!category) {
-        const t = c.title || "";
-        if (t.includes("یوگا")) category = "یوگا";
-        else if (t.includes("فیتنس")) category = "فیتنس";
-        else if (t.includes("کراس")) category = "کراس‌فیت";
-        else if (t.includes("TRX") || t.includes("تی آر ایکس")) category = "TRX";
-        else if (t.includes("پیلاتس")) category = "پیلاتس";
-        else if (t.includes("اسپینینگ")) category = "اسپینینگ";
-        else category = "بدنسازی";
-      }
-
-      let theme: ClassSession["theme"] = meta.theme;
-      if (!theme) {
-        if (category === "یوگا" || category === "فیتنس") theme = "cyan";
-        else if (category === "کراس‌فیت" || category === "TRX") theme = "amber";
-        else theme = "emerald";
-      }
-
-      // Roster strictly filtered against active gym members
-      const roster = getClassRoster(String(c.id), [], allGymMembers);
-      const enrolledCount = roster.length;
-
-      return {
-        id: String(c.id),
-        name: c.title,
-        category,
-        coach: coachName,
-        coachShort: coachName.split(" ")[0] || "مربی",
-        coachId: c.coach || null,
-        day,
-        time,
-        endTime,
-        durationMinutes: c.duration_minutes || 60,
-        capacity: c.capacity || 20,
-        enrolled: enrolledCount,
-        members: roster,
-        theme,
-        room: meta.room || "سالن اصلی",
-        level: meta.level || "همه سطوح",
-        description: meta.description || "",
-        isActive: c.is_active !== false,
-      };
-    });
-  }, [backendClasses, allGymMembers, rosterRevision]);
-
   const handleUpdateMembers = (classId: string, updatedMembers: ClassMember[]) => {
     saveClassRoster(classId, updatedMembers);
-    setRosterRevision((prev) => prev + 1);
     setSelectedClass((prev) => {
       if (!prev || prev.id !== classId) return prev;
       return {

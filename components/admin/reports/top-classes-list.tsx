@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useClasses } from "@/lib/hooks/queries/use-classes";
-import { getClassRoster } from "@/components/admin/classes/roster-store";
-import { INITIAL_CLASSES } from "@/components/admin/classes/types";
+import { useGymClasses } from "@/lib/hooks/use-gym-classes";
 import { toPersianDigits } from "@/lib/persian-digits";
 
 interface TopClassItem {
@@ -16,23 +14,16 @@ interface TopClassItem {
 }
 
 export function TopClassesList() {
-  const { data: backendClasses } = useClasses();
+  const { classes, isLoading } = useGymClasses();
 
   const topClasses: TopClassItem[] = useMemo(() => {
-    const rawList: any[] = Array.isArray(backendClasses)
-      ? backendClasses
-      : Array.isArray((backendClasses as any)?.results)
-        ? (backendClasses as any).results
-        : Array.isArray((backendClasses as any)?.classes)
-          ? (backendClasses as any).classes
-          : INITIAL_CLASSES;
+    if (!classes || classes.length === 0) return [];
 
-    const listWithStats = rawList.map((cls) => {
-      const name = cls.title || cls.name || "کلاس ورزشی";
-      const coach = cls.coach_name || cls.coach || "";
+    const listWithStats = classes.map((cls) => {
+      const name = cls.name || "کلاس ورزشی";
+      const coach = cls.coach || "";
       const capacity = cls.capacity || 20;
-      const roster = getClassRoster(String(cls.id));
-      const enrolled = roster.length > 0 ? roster.length : (cls.booked ?? cls.enrolled ?? 12);
+      const enrolled = cls.enrolled || 0;
       const percent = capacity > 0 ? Math.min(100, Math.round((enrolled / capacity) * 100)) : 0;
 
       return {
@@ -53,7 +44,7 @@ export function TopClassesList() {
       ...item,
       rank: persianRanks[idx] || String(idx + 1),
     }));
-  }, [backendClasses]);
+  }, [classes]);
 
   return (
     <div className="rounded-[16px] border border-border bg-surface shadow-[0_2px_8px_rgba(15,23,42,0.04)] print-avoid-break">
@@ -72,46 +63,69 @@ export function TopClassesList() {
       </div>
 
       <div className="p-[22px]">
-        <div className="flex flex-col gap-[16px]">
-          {topClasses.map((cls, index) => (
-            <div key={index} className="flex flex-col">
-              <div className="mb-[7px] flex items-center justify-between">
-                <div className="flex items-center gap-[9px] min-w-0">
-                  <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] bg-tint text-[12px] font-extrabold text-primary-dark">
-                    {cls.rank}
-                  </span>
-                  <div className="min-w-0 truncate">
-                    <span className="text-[13.5px] font-bold text-ink truncate block">
-                      {cls.name}
+        {isLoading && classes.length === 0 ? (
+          <div className="flex flex-col gap-[14px] py-[10px]">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex animate-pulse flex-col gap-[8px]">
+                <div className="flex justify-between">
+                  <div className="h-[14px] w-[120px] rounded-[6px] bg-bg" />
+                  <div className="h-[14px] w-[60px] rounded-[6px] bg-bg" />
+                </div>
+                <div className="h-[7px] w-full rounded-full bg-bg" />
+              </div>
+            ))}
+          </div>
+        ) : topClasses.length === 0 ? (
+          <div className="py-[32px] text-center">
+            <div className="text-[13.5px] font-bold text-ink">
+              هیچ کلاسی ثبت نشده است
+            </div>
+            <div className="mt-[4px] text-[12px] text-ink-faint">
+              برای تعریف کلاس‌ها به بخش کلاس‌ها و تقویم مراجعه نمایید
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-[16px]">
+            {topClasses.map((cls, index) => (
+              <div key={index} className="flex flex-col">
+                <div className="mb-[7px] flex items-center justify-between">
+                  <div className="flex items-center gap-[9px] min-w-0">
+                    <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] bg-tint text-[12px] font-extrabold text-primary-dark">
+                      {cls.rank}
                     </span>
-                    {cls.coach && (
-                      <span className="text-[11px] text-ink-faint block truncate">
-                        مربی: {cls.coach}
+                    <div className="min-w-0 truncate">
+                      <span className="text-[13.5px] font-bold text-ink truncate block">
+                        {cls.name}
                       </span>
-                    )}
+                      {cls.coach && (
+                        <span className="text-[11px] text-ink-faint block truncate">
+                          مربی: {cls.coach}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-[6px] shrink-0">
+                    <span className="text-[11.5px] font-medium text-ink-faint">
+                      ({toPersianDigits(cls.enrolled)}/{toPersianDigits(cls.capacity)})
+                    </span>
+                    <span className="text-[12.5px] font-bold text-ink-soft">
+                      {toPersianDigits(cls.percent)}٪
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-[6px] shrink-0">
-                  <span className="text-[11.5px] font-medium text-ink-faint">
-                    ({toPersianDigits(cls.enrolled)}/{toPersianDigits(cls.capacity)})
-                  </span>
-                  <span className="text-[12.5px] font-bold text-ink-soft">
-                    {toPersianDigits(cls.percent)}٪
-                  </span>
+                {/* Progress Bar */}
+                <div className="h-[7px] overflow-hidden rounded-full bg-bg">
+                  <div
+                    style={{ width: `${cls.percent}%` }}
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-[#22D3EE] transition-all duration-500"
+                  />
                 </div>
               </div>
-
-              {/* Progress Bar */}
-              <div className="h-[7px] overflow-hidden rounded-full bg-bg">
-                <div
-                  style={{ width: `${cls.percent}%` }}
-                  className="h-full rounded-full bg-gradient-to-r from-primary to-[#22D3EE] transition-all duration-500"
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

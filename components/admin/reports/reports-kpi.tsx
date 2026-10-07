@@ -4,9 +4,7 @@ import { useMemo } from "react";
 import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
 import { usePaymentsData, formatFullToman } from "@/lib/payments-store";
 import { useMembersData } from "@/lib/members-store";
-import { useClasses } from "@/lib/hooks/queries/use-classes";
-import { getClassRoster } from "@/components/admin/classes/roster-store";
-import { INITIAL_CLASSES } from "@/components/admin/classes/types";
+import { useGymClasses } from "@/lib/hooks/use-gym-classes";
 import { toPersianDigits } from "@/lib/persian-digits";
 
 interface ReportsKpiProps {
@@ -17,7 +15,7 @@ export function ReportsKpi({ range = "30days" }: ReportsKpiProps) {
   const { data: dashboard, isLoading: dashboardLoading } = useOwnerDashboard();
   const { totalRevenue, isLoading: paymentsLoading } = usePaymentsData();
   const { members, counts: membersCounts, isLoading: membersLoading } = useMembersData();
-  const { data: backendClasses } = useClasses();
+  const { classes } = useGymClasses();
 
   const isLoading = dashboardLoading && paymentsLoading && membersLoading;
 
@@ -53,19 +51,8 @@ export function ReportsKpi({ range = "30days" }: ReportsKpiProps) {
     let attendance = todayCheckins;
 
     if (attendance === 0) {
-      // Calculate from class rosters today
-      const rawClasses: any[] = Array.isArray(backendClasses)
-        ? backendClasses
-        : Array.isArray((backendClasses as any)?.results)
-          ? (backendClasses as any).results
-          : Array.isArray((backendClasses as any)?.classes)
-            ? (backendClasses as any).classes
-            : INITIAL_CLASSES;
-
-      const totalEnrolled = rawClasses.reduce((sum, cls) => {
-        const roster = getClassRoster(String(cls.id));
-        return sum + (roster.length > 0 ? roster.length : (cls.enrolled || cls.booked || 0));
-      }, 0);
+      // Calculate from class rosters
+      const totalEnrolled = classes.reduce((sum, cls) => sum + (cls.enrolled || 0), 0);
 
       // Average daily attendance across active days
       if (totalEnrolled > 0) {
@@ -95,7 +82,7 @@ export function ReportsKpi({ range = "30days" }: ReportsKpiProps) {
       revenueTrend: revTrendVal,
       membersTrend: memTrendVal,
     };
-  }, [totalRevenue, dashboard, members, membersCounts, backendClasses, range]);
+  }, [totalRevenue, dashboard, members, membersCounts, classes, range]);
 
   if (isLoading) {
     return (

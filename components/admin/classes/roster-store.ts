@@ -1,5 +1,6 @@
 import { ClassMember } from "./types";
 import { isDeletedMember, normalizePersianName } from "@/lib/members-store";
+import { getCurrentGymScope } from "@/lib/session-scope";
 
 const CLASS_ROSTER_PREFIX = "titan_gym_class_roster_";
 export const ROSTER_UPDATED_EVENT = "titan_gym_roster_updated";
@@ -27,7 +28,10 @@ export function isDisallowedMember(m: any, validMembers?: any[]): boolean {
   if (isDeletedMember(idStr, name)) return true;
 
   // If a list of active gym members is provided, ensure this member actually exists in it
-  if (validMembers && Array.isArray(validMembers) && validMembers.length > 0) {
+  if (validMembers && Array.isArray(validMembers)) {
+    if (validMembers.length === 0) {
+      return true; // No members exist in this gym account!
+    }
     // If it's a newly added member (ID starting with m_ or timestamp), allow it
     if (idStr.startsWith("m_")) {
       return false;
@@ -171,25 +175,35 @@ export function removeMemberFromAllClassRosters(id: string, name?: string): void
   } catch {}
 }
 
+export function getClassRosterKey(classId: string, scope?: string): string {
+  const s = scope || getCurrentGymScope();
+  return `titan_gym_class_roster_${s}_${classId}`;
+}
+
 /**
  * Retrieve class roster strictly filtered against active gym members
  */
 export function getClassRoster(
   classId: string,
   defaultMembers: ClassMember[] = [],
-  validMembers?: any[]
+  validMembers?: any[],
+  scope?: string
 ): ClassMember[] {
   if (typeof window === "undefined" || !classId) {
     return defaultMembers.filter((m) => !isDisallowedMember(m, validMembers));
   }
+  const s = scope || getCurrentGymScope();
   try {
-    const raw = localStorage.getItem(`${CLASS_ROSTER_PREFIX}${classId}`);
+    const key = getClassRosterKey(classId, s);
+    const raw =
+      localStorage.getItem(key) ||
+      (s === "gym_flex" || s.includes("farooq") ? localStorage.getItem(`${CLASS_ROSTER_PREFIX}${classId}`) : null);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         const cleaned = parsed.filter((m) => !isDisallowedMember(m, validMembers));
         if (cleaned.length !== parsed.length) {
-          localStorage.setItem(`${CLASS_ROSTER_PREFIX}${classId}`, JSON.stringify(cleaned));
+          localStorage.setItem(key, JSON.stringify(cleaned));
         }
         return cleaned;
       }
@@ -206,12 +220,15 @@ export function getClassRoster(
 export function saveClassRoster(
   classId: string,
   members: ClassMember[],
-  validMembers?: any[]
+  validMembers?: any[],
+  scope?: string
 ): void {
   if (typeof window === "undefined" || !classId) return;
+  const s = scope || getCurrentGymScope();
   try {
+    const key = getClassRosterKey(classId, s);
     const cleaned = members.filter((m) => !isDisallowedMember(m, validMembers));
-    localStorage.setItem(`${CLASS_ROSTER_PREFIX}${classId}`, JSON.stringify(cleaned));
+    localStorage.setItem(key, JSON.stringify(cleaned));
     window.dispatchEvent(new CustomEvent(ROSTER_UPDATED_EVENT, { detail: { classId, count: cleaned.length } }));
   } catch (err) {
     console.error("Failed to save class roster to localStorage:", err);

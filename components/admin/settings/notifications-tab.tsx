@@ -5,9 +5,7 @@ import { useGymSettings, useUpdateGymSettings, useGymMe } from "@/lib/hooks/quer
 import { useAuth } from "@/lib/auth-context";
 import { useMembersData } from "@/lib/members-store";
 import { usePaymentsData, formatFullToman } from "@/lib/payments-store";
-import { useClasses } from "@/lib/hooks/queries/use-classes";
-import { getClassRoster } from "@/components/admin/classes/roster-store";
-import { INITIAL_CLASSES } from "@/components/admin/classes/types";
+import { useGymClasses } from "@/lib/hooks/use-gym-classes";
 import { toPersianDigits } from "@/lib/persian-digits";
 import {
   Check,
@@ -181,7 +179,7 @@ export function NotificationsTab() {
 
   const { members } = useMembersData();
   const { totalRevenue } = usePaymentsData();
-  const { data: backendClasses } = useClasses();
+  const { todayMembersCount } = useGymClasses();
 
   // Notifications toggle list
   const [notifications, setNotifications] = useState<NotificationConfig[]>(() => {
@@ -280,18 +278,7 @@ export function NotificationsTab() {
   const expiringMembers = members.filter((m) => m.status === "expiring");
 
   // Today's enrolled students for class reminders
-  const rawClasses: any[] = Array.isArray(backendClasses)
-    ? backendClasses
-    : Array.isArray((backendClasses as any)?.results)
-      ? (backendClasses as any).results
-      : Array.isArray((backendClasses as any)?.classes)
-        ? (backendClasses as any).classes
-        : INITIAL_CLASSES;
-
-  const totalClassStudents = rawClasses.reduce((sum, cls) => {
-    const roster = getClassRoster(String(cls.id));
-    return sum + (roster.length > 0 ? roster.length : (cls.enrolled || cls.booked || 0));
-  }, 0);
+  const totalClassStudents = todayMembersCount;
 
   // Toggle switch handler
   const handleToggle = async (key: string) => {
@@ -362,7 +349,7 @@ export function NotificationsTab() {
       text = `📊 گزارش روزانه مدیریت باشگاه تیتان
 📅 تاریخ: ${dateStr}
 💰 درآمد کل ثبت‌شده: ${formatFullToman(totalRevenue)}
-👥 حضور و شاگردان امروز: ${toPersianDigits(totalClassStudents || 18)} نفر
+👥 حضور و شاگردان امروز: ${toPersianDigits(totalClassStudents)} نفر
 ⚠️ اشتراک‌های رو به اتمام: ${toPersianDigits(expiringMembers.length)} عضو
 ✅ وضعیت سامانه و دستگاه‌ها: فعال و پایدار
 باشگاه ورزشی تیتان`;

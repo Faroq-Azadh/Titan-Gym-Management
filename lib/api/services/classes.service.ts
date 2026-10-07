@@ -1,5 +1,6 @@
 import apiClient from "../client";
 import { ENDPOINTS } from "../endpoints";
+import { getCurrentGymScope } from "@/lib/session-scope";
 
 export interface GymClassTemplate {
   id: string;
@@ -77,12 +78,18 @@ export interface CreateBookingPayload {
   status?: "CONFIRMED" | "PENDING" | "CANCELLED" | "REJECTED";
 }
 
-const LOCAL_BOOKINGS_KEY = "titan_gym_bookings_local";
+export function getLocalBookingsKey(scope?: string): string {
+  const s = scope || getCurrentGymScope();
+  return `titan_gym_bookings_local_${s}`;
+}
 
-function getLocalBookings(): BookingRosterRow[] {
+export function getLocalBookings(scope?: string): BookingRosterRow[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(LOCAL_BOOKINGS_KEY);
+    const s = scope || getCurrentGymScope();
+    const raw =
+      localStorage.getItem(getLocalBookingsKey(s)) ||
+      (s === "gym_flex" || s.includes("farooq") ? localStorage.getItem("titan_gym_bookings_local") : null);
     if (!raw) return [];
     const parsed: BookingRosterRow[] = JSON.parse(raw);
     if (Array.isArray(parsed)) {
@@ -92,7 +99,7 @@ function getLocalBookings(): BookingRosterRow[] {
         return true;
       });
       if (filtered.length !== parsed.length) {
-        saveLocalBookings(filtered);
+        saveLocalBookings(filtered, s);
       }
       return filtered;
     }
@@ -102,48 +109,111 @@ function getLocalBookings(): BookingRosterRow[] {
   }
 }
 
-function saveLocalBookings(bookings: BookingRosterRow[]): void {
+export function saveLocalBookings(bookings: BookingRosterRow[], scope?: string): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(LOCAL_BOOKINGS_KEY, JSON.stringify(bookings));
+    const s = scope || getCurrentGymScope();
+    localStorage.setItem(getLocalBookingsKey(s), JSON.stringify(bookings));
   } catch {
     // Ignore storage errors
   }
 }
 
-export const DELETED_CLASSES_KEY = "titan_gym_deleted_class_ids";
+export function getDeletedClassesKey(scope?: string): string {
+  const s = scope || getCurrentGymScope();
+  return `titan_gym_deleted_class_ids_${s}`;
+}
 
-export function getDeletedClassIds(): Set<string> {
+export function getDeletedClassIds(scope?: string): Set<string> {
   if (typeof window === "undefined") return new Set();
   try {
-    const raw = localStorage.getItem(DELETED_CLASSES_KEY);
+    const s = scope || getCurrentGymScope();
+    const raw =
+      localStorage.getItem(getDeletedClassesKey(s)) ||
+      (s === "gym_flex" || s.includes("farooq") ? localStorage.getItem("titan_gym_deleted_class_ids") : null);
     return raw ? new Set(JSON.parse(raw)) : new Set();
   } catch {
     return new Set();
   }
 }
 
-export function markClassAsDeleted(id: string | number): void {
+export function markClassAsDeleted(id: string | number, scope?: string): void {
   if (typeof window === "undefined" || !id) return;
   try {
-    const set = getDeletedClassIds();
+    const s = scope || getCurrentGymScope();
+    const set = getDeletedClassIds(s);
     set.add(String(id));
-    localStorage.setItem(DELETED_CLASSES_KEY, JSON.stringify(Array.from(set)));
+    localStorage.setItem(getDeletedClassesKey(s), JSON.stringify(Array.from(set)));
   } catch {}
 }
 
-export function unmarkClassAsDeleted(id: string | number): void {
+export function unmarkClassAsDeleted(id: string | number, scope?: string): void {
   if (typeof window === "undefined" || !id) return;
   try {
-    const set = getDeletedClassIds();
+    const s = scope || getCurrentGymScope();
+    const set = getDeletedClassIds(s);
     set.delete(String(id));
-    localStorage.setItem(DELETED_CLASSES_KEY, JSON.stringify(Array.from(set)));
+    localStorage.setItem(getDeletedClassesKey(s), JSON.stringify(Array.from(set)));
   } catch {}
 }
 
-export function isDeletedClass(id: string | number): boolean {
+export function isDeletedClass(id: string | number, scope?: string): boolean {
   if (!id) return false;
-  return getDeletedClassIds().has(String(id));
+  return getDeletedClassIds(scope).has(String(id));
+}
+
+export function getLocalClassesKey(scope?: string): string {
+  const s = scope || getCurrentGymScope();
+  return `titan_gym_local_classes_${s}`;
+}
+
+export function getLocalClasses(scope?: string): GymClassTemplate[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const s = scope || getCurrentGymScope();
+    const raw = localStorage.getItem(getLocalClassesKey(s));
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalClass(cls: GymClassTemplate, scope?: string): void {
+  if (typeof window === "undefined" || !cls) return;
+  try {
+    const s = scope || getCurrentGymScope();
+    const current = getLocalClasses(s).filter((c) => String(c.id) !== String(cls.id));
+    current.unshift(cls);
+    localStorage.setItem(getLocalClassesKey(s), JSON.stringify(current));
+    window.dispatchEvent(new CustomEvent("titan_gym_classes_updated"));
+  } catch {}
+}
+
+export function updateLocalClass(
+  id: string | number,
+  payload: Partial<CreateClassPayload>,
+  scope?: string
+): void {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const s = scope || getCurrentGymScope();
+    const current = getLocalClasses(s);
+    const updated = current.map((c) =>
+      String(c.id) === String(id) ? { ...c, ...payload } : c
+    );
+    localStorage.setItem(getLocalClassesKey(s), JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent("titan_gym_classes_updated"));
+  } catch {}
+}
+
+export function removeLocalClass(id: string | number, scope?: string): void {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const s = scope || getCurrentGymScope();
+    const current = getLocalClasses(s).filter((c) => String(c.id) !== String(id));
+    localStorage.setItem(getLocalClassesKey(s), JSON.stringify(current));
+    window.dispatchEvent(new CustomEvent("titan_gym_classes_updated"));
+  } catch {}
 }
 
 export const classesService = {
@@ -151,15 +221,31 @@ export const classesService = {
    * List all class templates (strictly excluding inactive or deleted classes)
    */
   async getClasses(): Promise<GymClassTemplate[]> {
-    const res = await apiClient.get<GymClassTemplate[]>(ENDPOINTS.CLASSES.LIST, { requiresAuth: true });
-    const list: GymClassTemplate[] = Array.isArray(res)
-      ? res
-      : Array.isArray((res as any)?.results)
-        ? (res as any).results
-        : Array.isArray((res as any)?.classes)
-          ? (res as any).classes
-          : [];
-    const deletedIds = getDeletedClassIds();
+    const gymScope = getCurrentGymScope();
+    let list: GymClassTemplate[] = [];
+    try {
+      const res = await apiClient.get<GymClassTemplate[]>(ENDPOINTS.CLASSES.LIST, { requiresAuth: true });
+      list = Array.isArray(res)
+        ? res
+        : Array.isArray((res as any)?.results)
+          ? (res as any).results
+          : Array.isArray((res as any)?.classes)
+            ? (res as any).classes
+            : [];
+    } catch (err) {
+      console.warn("Could not fetch remote classes, using local list:", err);
+    }
+
+    // Merge any locally added classes
+    const local = getLocalClasses(gymScope);
+    const existingIds = new Set(list.map((c) => String(c.id)));
+    for (const lc of local) {
+      if (!existingIds.has(String(lc.id))) {
+        list.push(lc);
+      }
+    }
+
+    const deletedIds = getDeletedClassIds(gymScope);
     return list.filter((c) => c && c.is_active !== false && !deletedIds.has(String(c.id)));
   },
 
@@ -167,8 +253,9 @@ export const classesService = {
    * Get weekly calendar grid + KPI stats (strictly excluding inactive or deleted classes)
    */
   async getCalendar(): Promise<ClassCalendarResponse> {
+    const gymScope = getCurrentGymScope();
     const res = await apiClient.get<ClassCalendarResponse>(ENDPOINTS.CLASSES.CALENDAR, { requiresAuth: true });
-    const deletedIds = getDeletedClassIds();
+    const deletedIds = getDeletedClassIds(gymScope);
     if (res && res.classes && Array.isArray(res.classes)) {
       res.classes = res.classes.filter((c) => c && c.is_active !== false && !deletedIds.has(String(c.id)));
     }
@@ -186,10 +273,28 @@ export const classesService = {
    * Create a new weekly class template in Django
    */
   async createClass(payload: CreateClassPayload): Promise<GymClassTemplate> {
-    const res = await apiClient.post<any>(ENDPOINTS.CLASSES.LIST, payload, { requiresAuth: true });
-    const target = (res && res.class) ? (res.class as GymClassTemplate) : (res as GymClassTemplate);
-    if (target?.id) {
-      unmarkClassAsDeleted(target.id);
+    const gymScope = getCurrentGymScope();
+    let target: GymClassTemplate;
+    try {
+      const res = await apiClient.post<any>(ENDPOINTS.CLASSES.LIST, payload, { requiresAuth: true });
+      target = (res && res.class) ? (res.class as GymClassTemplate) : (res as GymClassTemplate);
+      if (target?.id) {
+        unmarkClassAsDeleted(target.id, gymScope);
+      }
+    } catch (err) {
+      console.warn("Backend create class failed, saving locally:", err);
+      target = {
+        id: `class_${Date.now()}`,
+        title: payload.title,
+        coach: payload.coach,
+        day_of_week: payload.day_of_week,
+        start_time: payload.start_time,
+        duration_minutes: payload.duration_minutes,
+        capacity: payload.capacity,
+        is_active: payload.is_active !== false,
+      };
+      saveLocalClass(target, gymScope);
+      unmarkClassAsDeleted(target.id, gymScope);
     }
     return target;
   },
@@ -198,13 +303,20 @@ export const classesService = {
    * Update a class template in Django
    */
   async updateClass(id: string | number, payload: Partial<CreateClassPayload>): Promise<GymClassTemplate> {
+    const gymScope = getCurrentGymScope();
     if (payload.is_active !== false) {
-      unmarkClassAsDeleted(id);
+      unmarkClassAsDeleted(id, gymScope);
     } else {
-      markClassAsDeleted(id);
+      markClassAsDeleted(id, gymScope);
     }
-    const res = await apiClient.patch<any>(ENDPOINTS.CLASSES.DETAIL(id), payload, { requiresAuth: true });
-    const target = res?.class || res || {};
+    updateLocalClass(id, payload, gymScope);
+
+    let target = {};
+    try {
+      const res = await apiClient.patch<any>(ENDPOINTS.CLASSES.DETAIL(id), payload, { requiresAuth: true });
+      target = res?.class || res || {};
+    } catch {}
+
     return {
       id: String(id),
       ...payload,
@@ -216,11 +328,15 @@ export const classesService = {
    * Deactivate a class in Django (Django sets is_active=false instead of hard DELETE)
    */
   async deleteClass(id: string | number): Promise<void> {
-    markClassAsDeleted(id);
+    const gymScope = getCurrentGymScope();
+    markClassAsDeleted(id, gymScope);
+    removeLocalClass(id, gymScope);
     try {
       await apiClient.delete(ENDPOINTS.CLASSES.DETAIL(id), { requiresAuth: true });
     } catch {
-      await apiClient.patch(ENDPOINTS.CLASSES.DETAIL(id), { is_active: false }, { requiresAuth: true });
+      try {
+        await apiClient.patch(ENDPOINTS.CLASSES.DETAIL(id), { is_active: false }, { requiresAuth: true });
+      } catch {}
     }
   },
 

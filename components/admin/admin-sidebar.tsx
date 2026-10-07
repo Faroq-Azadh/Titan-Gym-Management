@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { useGymMe } from "@/lib/hooks/queries/use-gym-me";
 import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
+import { useGymClasses } from "@/lib/hooks/use-gym-classes";
 import { persianNumber } from "@/lib/api/register-gym";
 
 interface AdminSidebarProps {
@@ -19,6 +20,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const { user } = useAuth();
   const { data: gym } = useGymMe();
   const { data: dashboard } = useOwnerDashboard();
+  const { todayClasses } = useGymClasses();
 
   const getRoleLabel = (role?: string) => {
     switch (role) {
@@ -48,8 +50,8 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       : undefined;
 
   const todayClassesBadge =
-    dashboard?.todays_classes?.length !== undefined && dashboard.todays_classes.length > 0
-      ? Number(dashboard.todays_classes.length).toLocaleString("fa-IR")
+    todayClasses.length > 0
+      ? Number(todayClasses.length).toLocaleString("fa-IR")
       : undefined;
 
   const navManagement = [

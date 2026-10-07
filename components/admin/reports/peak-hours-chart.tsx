@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useClasses } from "@/lib/hooks/queries/use-classes";
-import { getClassRoster } from "@/components/admin/classes/roster-store";
-import { INITIAL_CLASSES } from "@/components/admin/classes/types";
+import { useGymClasses } from "@/lib/hooks/use-gym-classes";
 import { toPersianDigits, normalizeDigits } from "@/lib/persian-digits";
 import { cn } from "@/lib/utils";
 
@@ -28,17 +26,9 @@ const HOURS = [
 
 export function PeakHoursChart() {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  const { data: backendClasses } = useClasses();
+  const { classes } = useGymClasses();
 
   const peakData: PeakHourItem[] = useMemo(() => {
-    const rawClasses: any[] = Array.isArray(backendClasses)
-      ? backendClasses
-      : Array.isArray((backendClasses as any)?.results)
-        ? (backendClasses as any).results
-        : Array.isArray((backendClasses as any)?.classes)
-          ? (backendClasses as any).classes
-          : INITIAL_CLASSES;
-
     // Start with strictly 0 for each hour bucket
     const hourCounts: Record<number, number> = {
       8: 0,
@@ -51,12 +41,10 @@ export function PeakHoursChart() {
     };
 
     // Calculate enrolled members per class session by its start time
-    rawClasses.forEach((cls) => {
-      const start = normalizeDigits(cls.start_time || cls.time || "08:00");
+    classes.forEach((cls) => {
+      const start = normalizeDigits(cls.rawStartTime || cls.time || "08:00");
       const h = parseInt(start.split(":")[0], 10) || 8;
-
-      const roster = getClassRoster(String(cls.id));
-      const enrolled = roster.length > 0 ? roster.length : (cls.enrolled ?? cls.booked ?? 0);
+      const enrolled = cls.enrolled || 0;
 
       // Find closest hour bucket
       let closestHour = 8;
@@ -86,7 +74,7 @@ export function PeakHoursChart() {
         isPeak: count > 0 && count === maxCount,
       };
     });
-  }, [backendClasses]);
+  }, [classes]);
 
   return (
     <div className="rounded-[16px] border border-border bg-surface shadow-[0_2px_8px_rgba(15,23,42,0.04)] print-avoid-break">
