@@ -29,10 +29,7 @@ export function KpiSection({ dashboard: propDashboard, isLoading: propIsLoading 
     membersCounts.total > 0 ? membersCounts.active : (dashboard?.active_members ?? 0);
   const activeMembersTrend = dashboard?.active_members_trend_percent ?? 0;
 
-  const monthlyRevenue =
-    dashboard?.revenue_month && parseFloat(dashboard.revenue_month.replace(/[^\d.-]/g, "")) > 0
-      ? formatFullToman(dashboard.revenue_month)
-      : formatFullToman(totalRevenue);
+  const monthlyRevenue = formatFullToman(totalRevenue);
   const revenueTrend = dashboard?.revenue_trend_percent ?? 0;
 
   const todayBookings = dashboard?.bookings_today ?? 0;

@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useOwnerDashboard } from "@/lib/hooks/queries/use-owner-dashboard";
 import { useMembersData } from "@/lib/members-store";
+import { usePaymentsData, formatFullToman } from "@/lib/payments-store";
 import { useTodayAttendance } from "@/lib/attendance-store";
 import { toPersianDigits } from "@/lib/persian-digits";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ export function RevenueChart() {
 
   const { data: dashboard, isLoading: dashboardLoading } = useOwnerDashboard();
   const { members: liveMembers, isLoading: membersLoading } = useMembersData();
+  const { totalRevenue } = usePaymentsData();
   const { todayCheckins: attendanceToday } = useTodayAttendance(dashboard?.today_checkins);
 
   const isLoading = dashboardLoading && membersLoading;
@@ -83,9 +85,13 @@ export function RevenueChart() {
   }, [dashboard?.weekly_attendance, attendanceToday, liveMembers, todayDayIdx]);
 
   // Monthly and Yearly data calculation
-  const monthlyRevenue = [18, 24, 32, 28, 38, 45, 52]; // in million Tomans
+  const currentMonthMillions =
+    totalRevenue > 0
+      ? Math.max(1, Math.round(totalRevenue / 1000000))
+      : 52;
+  const monthlyRevenue = [18, 24, 32, 28, 38, 45, currentMonthMillions]; // in million Tomans
   const monthlyMembers = [5, 8, 12, 10, 15, 18, Math.max(20, liveMembers.length)];
-  const yearlyRevenue = [180, 320, 510];
+  const yearlyRevenue = [180, 320, totalRevenue > 0 ? Math.max(50, Math.round((totalRevenue * 12) / 1000000)) : 510];
   const yearlyMembers = [80, 140, 220];
 
   const currentLabels =
@@ -236,7 +242,11 @@ export function RevenueChart() {
             <div className="animate-in fade-in flex items-center gap-[12px] rounded-[8px] border border-border bg-bg/90 px-[12px] py-[4px] text-[12px] font-bold text-ink shadow-xs">
               <span>{currentLabels[hoveredIdx]}{hoveredIdx === todayDayIdx && period === "week" ? " (امروز)" : ""}:</span>
               <span className="text-primary-dark">
-                {period === "week" ? `ورود: ${toPersianDigits(primaryValues[hoveredIdx])} نفر` : `${toPersianDigits(primaryValues[hoveredIdx])} م تومان`}
+                {period === "week"
+                  ? `ورود: ${toPersianDigits(primaryValues[hoveredIdx])} نفر`
+                  : hoveredIdx === 6 && totalRevenue > 0
+                    ? `درآمد: ${formatFullToman(totalRevenue)}`
+                    : `${toPersianDigits(primaryValues[hoveredIdx])} م تومان`}
               </span>
               <span className="text-[#0891B2]">
                 {period === "week" ? `ثبت‌نام: ${toPersianDigits(secondaryValues[hoveredIdx])} عضو` : `${toPersianDigits(secondaryValues[hoveredIdx])} عضو`}
