@@ -255,7 +255,7 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
       onClose();
     } catch (err: any) {
       console.error("Failed to add employee:", err);
-      let msg = "خطا در ثبت کارمند در سرور جنگو.";
+      let msg = "خطا در ثبت کارمند در سامانه.";
       if (err?.response?.data) {
         const d = err.response.data;
         if (typeof d === "string") msg = d;
@@ -285,7 +285,7 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
               </h3>
             </div>
             <p className="mt-1 text-[12.5px] text-ink-soft">
-              ثبت مشخصات و دسترسی پرسنل و کادر اداری در پنل و جنگو
+              ثبت مشخصات و دسترسی پرسنل و کادر اداری در سامانه
             </p>
           </div>
           <button

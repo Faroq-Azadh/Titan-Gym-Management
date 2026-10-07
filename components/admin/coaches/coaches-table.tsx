@@ -666,9 +666,9 @@ export function CoachesTable({
       const msg =
         err?.detail ||
         err?.message ||
-        (typeof err === "string" ? err : "خطا در حذف مربی از سرور جنگو.");
+        (typeof err === "string" ? err : "خطا در حذف مربی از سامانه.");
       if (typeof window !== "undefined") {
-        window.alert(`خطا در حذف مربی از پنل جنگو:\n${msg}`);
+        window.alert(`خطا در حذف مربی:\n${msg}`);
       }
     } finally {
       setDeletingCoachId(null);
@@ -900,7 +900,7 @@ export function CoachesTable({
       if (onCloseAddModal) onCloseAddModal();
     } catch (err: any) {
       console.error("Failed to add coach in Django:", err);
-      let msg = "خطا در ثبت مربی در پنل جنگو. لطفاً اطلاعات ارسالی را بررسی کنید.";
+      let msg = "خطا در ثبت مربی در سامانه. لطفاً اطلاعات ارسالی را بررسی کنید.";
       if (err?.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
         const parts: string[] = [];
         for (const [field, errors] of Object.entries(err.fieldErrors)) {
@@ -1382,7 +1382,7 @@ export function CoachesTable({
                   افزودن مربی جدید
                 </h3>
                 <p className="mt-1 text-[12.5px] text-ink-soft">
-                  ثبت مربی در پنل جنگو بر اساس استاندارد سامانه تایتان
+                  ثبت مربی در سامانه بر اساس استاندارد تایتان جیم
                 </p>
               </div>
               <button
@@ -1860,7 +1860,7 @@ export function CoachesTable({
                   {isSubmittingNew ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      <span>در حال ثبت در جنگو...</span>
+                      <span>در حال ثبت اطلاعات...</span>
                     </>
                   ) : (
                     <>

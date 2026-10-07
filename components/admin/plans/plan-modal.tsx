@@ -2,13 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { PlanItem } from "./types";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash2, Loader2, Sparkles, Clock, DollarSign } from "lucide-react";
+import {
+  toPersianDigits,
+  normalizeDigits,
+  extractDigitsOnly,
+  formatPriceToWords,
+} from "@/lib/persian-digits";
 
 interface PlanModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (planData: Omit<PlanItem, "id">, editId?: string) => void;
+  onSave: (planData: Omit<PlanItem, "id">, editId?: string) => Promise<void> | void;
   editPlan?: PlanItem | null;
+  isSubmitting?: boolean;
 }
 
 export function PlanModal({
@@ -16,12 +23,14 @@ export function PlanModal({
   onClose,
   onSave,
   editPlan,
+  isSubmitting = false,
 }: PlanModalProps) {
   const [name, setName] = useState("");
   const [hint, setHint] = useState("");
-  const [price, setPrice] = useState("");
-  const [priceUnit, setPriceUnit] = useState("هزار تومان / ماه");
-  const [duration, setDuration] = useState("۱ ماه");
+  const [priceInput, setPriceInput] = useState("");
+  const [durationDays, setDurationDays] = useState<number>(30);
+  const [isCustomDuration, setIsCustomDuration] = useState(false);
+  const [customDays, setCustomDays] = useState("30");
   const [status, setStatus] = useState<"active" | "inactive">("active");
   const [featured, setFeatured] = useState(false);
   const [ribbonText, setRibbonText] = useState("محبوب");
@@ -31,25 +40,41 @@ export function PlanModal({
     "کمد اختصاصی",
   ]);
   const [newFeatureText, setNewFeatureText] = useState("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (editPlan) {
       setName(editPlan.name);
-      setHint(editPlan.hint);
-      setPrice(editPlan.price);
-      setPriceUnit(editPlan.priceUnit);
-      setDuration(editPlan.duration);
+      setHint(editPlan.hint || "");
+
+      // Normalize price cleanly extracting digits only
+      const rawDigits = extractDigitsOnly(String(editPlan.priceRaw || editPlan.price || ""));
+      const rawNum = parseInt(rawDigits, 10) || 0;
+      setPriceInput(rawNum ? rawNum.toLocaleString("en-US") : "");
+
+      // Duration
+      const days = editPlan.durationDays || (editPlan.duration?.match(/\d+/) ? parseInt(editPlan.duration.match(/\d+/)![0], 10) : 30);
+      if ([30, 90, 180, 365].includes(days)) {
+        setDurationDays(days);
+        setIsCustomDuration(false);
+      } else {
+        setIsCustomDuration(true);
+        setCustomDays(String(days));
+        setDurationDays(days);
+      }
+
       setStatus(editPlan.status);
       setFeatured(Boolean(editPlan.featured));
       setRibbonText(editPlan.ribbonText || "محبوب");
       setDescription(editPlan.description || "");
-      setFeatures(editPlan.features || []);
+      setFeatures(editPlan.features && editPlan.features.length > 0 ? editPlan.features : ["دسترسی به سالن بدنسازی", "کمد اختصاصی"]);
     } else {
       setName("");
       setHint("");
-      setPrice("");
-      setPriceUnit("هزار تومان / ماه");
-      setDuration("۱ ماه");
+      setPriceInput("1,200,000");
+      setDurationDays(30);
+      setIsCustomDuration(false);
+      setCustomDays("30");
       setStatus("active");
       setFeatured(false);
       setRibbonText("محبوب");
@@ -60,9 +85,25 @@ export function PlanModal({
       ]);
     }
     setNewFeatureText("");
+    setErrorMsg(null);
   }, [editPlan, isOpen]);
 
   if (!isOpen) return null;
+
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = extractDigitsOnly(e.target.value);
+    if (!raw) {
+      setPriceInput("");
+      return;
+    }
+    const num = parseInt(raw, 10);
+    setPriceInput(num.toLocaleString("en-US"));
+  };
+
+  const getCleanPriceNum = (): number => {
+    const raw = extractDigitsOnly(priceInput);
+    return parseInt(raw, 10) || 0;
+  };
 
   const handleAddFeature = () => {
     if (newFeatureText.trim()) {
@@ -75,75 +116,105 @@ export function PlanModal({
     setFeatures(features.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
+
     if (!name.trim()) {
-      alert("لطفاً عنوان پلن را وارد کنید.");
-      return;
-    }
-    if (!price.trim()) {
-      alert("لطفاً قیمت پلن را مشخص کنید.");
+      setErrorMsg("لطفاً عنوان پلن را وارد کنید.");
       return;
     }
 
-    onSave(
-      {
-        name,
-        hint,
-        price,
-        priceUnit,
-        duration,
-        status,
-        featured,
-        ribbonText: featured ? ribbonText : undefined,
-        description,
-        features: features.length > 0 ? features : ["دسترسی استاندارد به باشگاه"],
-        activeMembers: editPlan ? editPlan.activeMembers : 0,
-      },
-      editPlan?.id,
-    );
+    const priceNum = getCleanPriceNum();
+    if (!priceNum || priceNum <= 0) {
+      setErrorMsg("لطفاً مبلغ معتبری برای پلن وارد کنید.");
+      return;
+    }
 
-    onClose();
+    const effectiveDays = isCustomDuration ? parseInt(normalizeDigits(customDays), 10) || 30 : durationDays;
+    const durationMonths = Math.max(1, Math.round(effectiveDays / 30));
+    const durationLabel = `${durationMonths.toLocaleString("fa-IR")} ماهه (${effectiveDays.toLocaleString("fa-IR")} روز)`;
+
+    try {
+      await onSave(
+        {
+          name: name.trim(),
+          hint: hint.trim() || (status === "active" ? "پلن فعال" : "پلن غیرفعال"),
+          price: priceNum.toLocaleString("fa-IR"),
+          priceRaw: priceNum,
+          priceUnit: "تومان",
+          duration: durationLabel,
+          durationDays: effectiveDays,
+          status,
+          featured,
+          ribbonText: featured ? ribbonText : undefined,
+          description: description.trim(),
+          features: features.length > 0 ? features : ["دسترسی استاندارد به باشگاه"],
+          activeMembers: editPlan ? editPlan.activeMembers : 0,
+        },
+        editPlan?.id,
+      );
+    } catch (err: any) {
+      setErrorMsg(err?.message || "خطا در برقراری ارتباط با سرور");
+    }
   };
+
+  const PRESET_PRICES = [
+    { label: "۹۵۰ هزار", val: 950000 },
+    { label: "۱.۵ میلیون", val: 1500000 },
+    { label: "۲.۵ میلیون", val: 2500000 },
+    { label: "۴.۸ میلیون", val: 4800000 },
+    { label: "۸.۹ میلیون", val: 8900000 },
+  ];
+
+  const currentPriceNum = getCleanPriceNum();
 
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center p-[16px]">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-ink/50 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
+        onClick={() => !isSubmitting && onClose()}
       />
 
       {/* Modal Box */}
-      <div className="relative z-10 w-full max-w-[560px] overflow-hidden rounded-[20px] border border-border bg-surface shadow-[0_20px_60px_rgba(15,23,42,0.15)] animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-[580px] overflow-hidden rounded-[20px] border border-border bg-surface shadow-[0_20px_60px_rgba(15,23,42,0.15)] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border bg-bg/60 p-[20px_24px]">
+        <div className="flex items-center justify-between border-b border-border bg-bg/60 p-[18px_24px]">
           <div>
             <h3 className="text-[18px] font-black text-ink">
-              {editPlan ? "ویرایش پلن عضویت" : "تعریف پلن جدید"}
+              {editPlan ? "ویرایش پلن عضویت باشگاه" : "تعریف پلن عضویت جدید"}
             </h3>
             <p className="mt-[2px] text-[12.5px] text-ink-faint">
-              تنظیم قیمت، مدت اعتبار و خدمات اختصاصی پلن
+              تعیین قیمت، مدت اعتبار و خدمات اختصاصی پلن
             </p>
           </div>
 
           <button
             type="button"
+            disabled={isSubmitting}
             onClick={onClose}
-            className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] text-ink-faint transition-colors hover:bg-surface hover:text-ink"
+            className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] text-ink-faint transition-colors hover:bg-surface hover:text-ink cursor-pointer disabled:opacity-50"
           >
             <X className="h-[18px] w-[18px]" />
           </button>
         </div>
 
+        {/* Error alert if any */}
+        {errorMsg && (
+          <div className="m-[16px_24px_0] rounded-[10px] border border-red-200 bg-red-50 p-3 text-[13px] font-bold text-red-600">
+            {errorMsg}
+          </div>
+        )}
+
         {/* Form Body */}
         <form onSubmit={handleSubmit}>
-          <div className="max-h-[72vh] space-y-[18px] overflow-y-auto p-[24px]">
+          <div className="max-h-[70vh] space-y-[18px] overflow-y-auto p-[22px_24px]">
             {/* Name & Hint */}
             <div className="grid grid-cols-1 gap-[14px] min-[480px]:grid-cols-2">
               <div>
                 <label className="mb-[6px] block text-[12.5px] font-bold text-ink">
-                  عنوان پلن <span className="text-[#DC2626]">*</span>
+                  عنوان پلن عضویت <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -157,11 +228,11 @@ export function PlanModal({
 
               <div>
                 <label className="mb-[6px] block text-[12.5px] font-bold text-ink">
-                  برچسب یا توضیح کوتاه
+                  توضیح کوتاه / برچسب
                 </label>
                 <input
                   type="text"
-                  placeholder="مثال: پرطرفدارترین"
+                  placeholder="مثال: پرطرفدارترین، دسترسی کامل"
                   value={hint}
                   onChange={(e) => setHint(e.target.value)}
                   className="w-full rounded-[12px] border border-border bg-surface p-[10px_14px] text-[13.5px] text-ink placeholder:text-ink-faint focus:border-primary focus:bg-tint focus:outline-none"
@@ -169,49 +240,115 @@ export function PlanModal({
               </div>
             </div>
 
-            {/* Price & Unit & Duration */}
-            <div className="grid grid-cols-1 gap-[14px] min-[480px]:grid-cols-3">
-              <div>
-                <label className="mb-[6px] block text-[12.5px] font-bold text-ink">
-                  قیمت (هزار تومان) <span className="text-[#DC2626]">*</span>
+            {/* Price section */}
+            <div>
+              <div className="mb-[6px] flex items-center justify-between">
+                <label className="block text-[12.5px] font-bold text-ink">
+                  مبلغ پلن عضویت <span className="text-red-500">*</span>
                 </label>
+                {currentPriceNum > 0 && (
+                  <span className="text-[12px] font-extrabold text-primary-dark">
+                    {toPersianDigits(currentPriceNum.toLocaleString("en-US"))} تومان
+                  </span>
+                )}
+              </div>
+
+              {/* Input Group with separated currency addon box (no text overlap) */}
+              <div className="flex items-center overflow-hidden rounded-[12px] border border-border bg-surface transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
                 <input
                   type="text"
+                  inputMode="numeric"
+                  dir="ltr"
                   required
-                  placeholder="۲٬۵۰۰"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="w-full rounded-[12px] border border-border bg-surface p-[10px_14px] text-[13.5px] text-ink placeholder:text-ink-faint focus:border-primary focus:bg-tint focus:outline-none"
+                  placeholder="1,200,000"
+                  value={priceInput}
+                  onChange={handlePriceChange}
+                  className="flex-1 bg-transparent px-[14px] py-[10px] text-left text-[15px] font-black tracking-wide text-ink placeholder:text-ink-faint focus:outline-none"
                 />
+                <div className="border-r border-border bg-bg/80 px-[14px] py-[10px] text-[12.5px] font-bold text-ink-soft select-none">
+                  تومان
+                </div>
               </div>
 
-              <div>
-                <label className="mb-[6px] block text-[12.5px] font-bold text-ink">
-                  واحد زمانی قیمت
-                </label>
-                <input
-                  type="text"
-                  placeholder="هزار تومان / ۳ ماه"
-                  value={priceUnit}
-                  onChange={(e) => setPriceUnit(e.target.value)}
-                  className="w-full rounded-[12px] border border-border bg-surface p-[10px_14px] text-[13.5px] text-ink placeholder:text-ink-faint focus:border-primary focus:bg-tint focus:outline-none"
-                />
+              {/* Amount in Persian Words (حروف) */}
+              {currentPriceNum > 0 && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-ink-soft">
+                  <span className="text-ink-faint">به حروف:</span>
+                  <span className="font-bold text-ink">{formatPriceToWords(currentPriceNum)}</span>
+                </div>
+              )}
+
+              {/* Price preset pills */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11.5px] text-ink-faint ml-1">مبالغ پیشنهادی:</span>
+                {PRESET_PRICES.map((p) => (
+                  <button
+                    key={p.val}
+                    type="button"
+                    onClick={() => setPriceInput(p.val.toLocaleString("en-US"))}
+                    className="rounded-[8px] border border-border bg-bg px-2.5 py-1 text-[11px] font-bold text-ink-soft hover:border-primary hover:text-ink hover:bg-tint/40 transition-colors cursor-pointer"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Duration section */}
+            <div>
+              <label className="mb-[6px] block text-[12.5px] font-bold text-ink">
+                مدت اعتبار پلن (روز)
+              </label>
+
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label: "۱ ماهه (۳۰ روز)", days: 30 },
+                  { label: "۳ ماهه (۹۰ روز)", days: 90 },
+                  { label: "۶ ماهه (۱۸۰ روز)", days: 180 },
+                  { label: "سالانه (۳۶۵ روز)", days: 365 },
+                ].map((opt) => (
+                  <button
+                    key={opt.days}
+                    type="button"
+                    onClick={() => {
+                      setDurationDays(opt.days);
+                      setIsCustomDuration(false);
+                    }}
+                    className={`rounded-[10px] border p-2 text-center text-[12px] font-bold transition-all cursor-pointer ${
+                      !isCustomDuration && durationDays === opt.days
+                        ? "border-primary bg-tint text-primary-dark shadow-xs ring-1 ring-primary/50"
+                        : "border-border bg-surface text-ink-soft hover:bg-bg"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
 
-              <div>
-                <label className="mb-[6px] block text-[12.5px] font-bold text-ink">
-                  مدت اعتبار
+              <div className="mt-2.5 flex items-center gap-3">
+                <label className="flex items-center gap-2 text-[12px] font-bold text-ink cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isCustomDuration}
+                    onChange={(e) => setIsCustomDuration(e.target.checked)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  <span>مدت زمان سفارشی</span>
                 </label>
-                <select
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  className="select-input w-full rounded-[12px] border border-border bg-surface p-[10px_14px] text-[13.5px] text-ink focus:border-primary focus:bg-tint focus:outline-none"
-                >
-                  <option value="۱ ماه">۱ ماه</option>
-                  <option value="۳ ماه">۳ ماه</option>
-                  <option value="۶ ماه">۶ ماه</option>
-                  <option value="۱۲ ماه">۱۲ ماه (سالانه)</option>
-                </select>
+
+                {isCustomDuration && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={3650}
+                      value={customDays}
+                      onChange={(e) => setCustomDays(e.target.value)}
+                      className="w-24 rounded-[8px] border border-border bg-surface p-1.5 text-center text-[13px] font-bold text-ink focus:border-primary focus:outline-none"
+                    />
+                    <span className="text-[12px] text-ink-faint">روز</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -219,8 +356,8 @@ export function PlanModal({
             <div className="grid grid-cols-1 gap-[14px] min-[480px]:grid-cols-2 rounded-[14px] border border-border bg-bg p-[14px]">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-[13px] font-bold text-ink">پلن ویژه / برگزیده</div>
-                  <div className="text-[11px] text-ink-faint">نمایش با حاشیه سبز و نشان محبوب</div>
+                  <div className="text-[13px] font-bold text-ink">پلن برگزیده (Featured)</div>
+                  <div className="text-[11px] text-ink-faint">نمایش با حاشیه سبز و نشان ویژه</div>
                 </div>
                 <input
                   type="checkbox"
@@ -232,8 +369,8 @@ export function PlanModal({
 
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-[13px] font-bold text-ink">وضعیت فروش پلن</div>
-                  <div className="text-[11px] text-ink-faint">فعال یا غیرفعال برای عضویت</div>
+                  <div className="text-[13px] font-bold text-ink">وضعیت فروش در باشگاه</div>
+                  <div className="text-[11px] text-ink-faint">فعال جهت ثبت‌نام اعضا</div>
                 </div>
                 <select
                   value={status}
@@ -241,7 +378,7 @@ export function PlanModal({
                   className="rounded-[8px] border border-border bg-surface px-[10px] py-[4px] text-[12px] font-bold text-ink focus:outline-none"
                 >
                   <option value="active">فعال</option>
-                  <option value="inactive">غیرفعال</option>
+                  <option value="inactive">غیرفعال (آرشیو)</option>
                 </select>
               </div>
             </div>
@@ -256,7 +393,7 @@ export function PlanModal({
               <div className="flex gap-[8px]">
                 <input
                   type="text"
-                  placeholder="افزودن ویژگی جدید (مثال: دسترسی به سونا)"
+                  placeholder="افزودن ویژگی (مثال: دسترسی به سونا، برنامه تمرینی رایگان)"
                   value={newFeatureText}
                   onChange={(e) => setNewFeatureText(e.target.value)}
                   onKeyDown={(e) => {
@@ -270,7 +407,7 @@ export function PlanModal({
                 <button
                   type="button"
                   onClick={handleAddFeature}
-                  className="inline-flex items-center gap-[4px] rounded-[10px] bg-ink px-[14px] py-[8px] text-[12.5px] font-bold text-white transition-colors hover:bg-primary-dark"
+                  className="inline-flex items-center gap-[4px] rounded-[10px] bg-ink px-[14px] py-[8px] text-[12.5px] font-bold text-white transition-colors hover:bg-primary-dark cursor-pointer"
                 >
                   <Plus className="h-[14px] w-[14px]" />
                   افزودن
@@ -291,7 +428,7 @@ export function PlanModal({
                     <button
                       type="button"
                       onClick={() => handleRemoveFeature(index)}
-                      className="text-ink-faint hover:text-[#DC2626]"
+                      className="text-ink-faint hover:text-red-500 cursor-pointer"
                     >
                       <Trash2 className="h-[14px] w-[14px]" />
                     </button>
@@ -303,11 +440,11 @@ export function PlanModal({
             {/* Description */}
             <div>
               <label className="mb-[6px] block text-[12.5px] font-bold text-ink">
-                توضیحات و یادداشت داخلی
+                توضیحات تکمیلی (Description)
               </label>
               <textarea
                 rows={2}
-                placeholder="توضیحات تکمیلی پیرامون شرایط پلن یا تخفیف‌ها..."
+                placeholder="توضیحات تکمیلی پیرامون شرایط پلن، امکانات و تخفیف‌ها..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full rounded-[12px] border border-border bg-surface p-[10px_14px] text-[13px] text-ink placeholder:text-ink-faint focus:border-primary focus:bg-tint focus:outline-none"
@@ -319,16 +456,19 @@ export function PlanModal({
           <div className="flex items-center justify-end gap-[10px] border-t border-border bg-bg/50 p-[16px_24px]">
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={onClose}
-              className="rounded-[10px] border border-border bg-surface px-[16px] py-[9px] text-[13px] font-bold text-ink-soft transition-colors hover:bg-bg hover:text-ink"
+              className="rounded-[10px] border border-border bg-surface px-[16px] py-[9px] text-[13px] font-bold text-ink-soft transition-colors hover:bg-bg hover:text-ink cursor-pointer disabled:opacity-50"
             >
               انصراف
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-[6px] rounded-[10px] bg-ink px-[20px] py-[9px] text-[13.5px] font-bold text-white transition-all hover:bg-primary-dark"
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-[6px] rounded-[10px] bg-ink px-[22px] py-[9px] text-[13.5px] font-bold text-white transition-all hover:bg-primary-dark cursor-pointer disabled:opacity-50"
             >
-              {editPlan ? "ذخیره تغییرات" : "ثبت پلن"}
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin text-white" />}
+              <span>{editPlan ? "ذخیره تغییرات در سرور" : "ثبت و ایجاد پلن"}</span>
             </button>
           </div>
         </form>
@@ -336,3 +476,4 @@ export function PlanModal({
     </div>
   );
 }
+

@@ -6,6 +6,7 @@ export interface PlanItem {
   priceRaw?: number;
   priceUnit: string;
   duration: string;
+  durationDays?: number;
   features: string[];
   activeMembers: number;
   status: "active" | "inactive";

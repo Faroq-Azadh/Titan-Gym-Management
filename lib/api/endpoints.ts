@@ -42,6 +42,14 @@ export const ENDPOINTS = {
     PLANS: "/gyms/plans/",
   },
 
+  // Membership & System Plans
+  PLANS: {
+    MEMBERSHIP_LIST: "/members/plans/",
+    MEMBERSHIP_CREATE: "/members/plans/",
+    MEMBERSHIP_DETAIL: (id: string | number) => `/members/plans/${id}/`,
+    SYSTEM_LIST: "/gyms/plans/",
+  },
+
   // Profile
   PROFILE: {
     ME: "/gyms/me/",

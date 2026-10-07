@@ -105,7 +105,7 @@ export function ClubInfoTab() {
     <div className="p-[24px_22px]">
       <div className="text-[15px] font-extrabold text-ink">اطلاعات باشگاه</div>
       <div className="mb-[20px] text-[13px] text-ink-faint">
-        این اطلاعات در پنل جنگو، فاکتورها و صفحه‌ی عمومی باشگاه ذخیره و نمایش داده می‌شود
+        این اطلاعات در سامانه، فاکتورها و صفحه‌ی عمومی باشگاه ذخیره و نمایش داده می‌شود
       </div>
 
       {errorMessage && (

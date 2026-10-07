@@ -1,31 +1,48 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { usePlans, useCreatePlan, useUpdatePlan, useSystemPlans } from "@/lib/hooks/queries/use-plans";
+import {
+  usePlans,
+  useCreatePlan,
+  useUpdatePlan,
+  useDeletePlan,
+  useSystemPlans,
+} from "@/lib/hooks/queries/use-plans";
 import { useGymMe } from "@/lib/hooks/queries/use-gym-me";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminTopbar } from "@/components/admin/admin-topbar";
 import { PlansGrid } from "@/components/admin/plans/plans-grid";
 import { PlansTable } from "@/components/admin/plans/plans-table";
 import { PlanModal } from "@/components/admin/plans/plan-modal";
+import { UpgradePlanModal } from "@/components/admin/plans/upgrade-plan-modal";
 import { PlanItem } from "@/components/admin/plans/types";
-import { Shield, Sparkles, Check, X } from "lucide-react";
+import { Shield, Sparkles, Check, CheckCircle2, AlertCircle, X, Loader2 } from "lucide-react";
 import { toPersianDigits } from "@/lib/persian-digits";
 import { SystemPlan } from "@/lib/api/services/plans.service";
+import { logActivity } from "@/lib/activities-store";
+import { getCurrentUserScope } from "@/lib/session-scope";
 
 export default function AdminPlansPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
-  const [upgradeSuccess, setUpgradeSuccess] = useState<string | null>(null);
   const [tableActiveTab, setTableActiveTab] = useState<"member_plans" | "system_plans">("member_plans");
   const [editingPlan, setEditingPlan] = useState<PlanItem | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
-  const { data: gym } = useGymMe();
-  const { data: backendPlans } = usePlans();
-  const { data: systemPlans } = useSystemPlans();
+  const { data: gym, isLoading: isGymLoading } = useGymMe();
+  const { data: backendPlans, isLoading: isPlansLoading } = usePlans();
+  const { data: systemPlans, isLoading: isSystemPlansLoading } = useSystemPlans();
   const createPlanMutation = useCreatePlan();
   const updatePlanMutation = useUpdatePlan();
+  const deletePlanMutation = useDeletePlan();
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToastMessage({ text, type });
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4500);
+  };
 
   const plans: PlanItem[] = useMemo(() => {
     const list: any[] = Array.isArray(backendPlans)
@@ -37,10 +54,11 @@ export default function AdminPlansPage() {
           : [];
 
     return list.map((p) => {
-      const priceNum = typeof p.price === "string" ? parseFloat(p.price) : p.price;
+      const priceNum = typeof p.price === "string" ? parseFloat(p.price) : (p.price || 0);
       const formattedPrice = priceNum ? priceNum.toLocaleString("fa-IR") : "۰";
-      const durationMonths = Math.max(1, Math.round((p.duration_days || 30) / 30));
-      const durationText = `${durationMonths.toLocaleString("fa-IR")} ماهه (${(p.duration_days || 30).toLocaleString("fa-IR")} روز)`;
+      const days = p.duration_days || 30;
+      const durationMonths = Math.max(1, Math.round(days / 30));
+      const durationText = `${durationMonths.toLocaleString("fa-IR")} ماهه (${days.toLocaleString("fa-IR")} روز)`;
 
       return {
         id: String(p.id),
@@ -50,32 +68,18 @@ export default function AdminPlansPage() {
         priceRaw: priceNum,
         priceUnit: "تومان",
         duration: durationText,
+        durationDays: days,
         activeMembers: p.active_members || 0,
         status: p.is_active ? ("active" as const) : ("inactive" as const),
-        features: Array.isArray(p.features) ? p.features : ["دسترسی به کلیه تجهیزات باشگاه"],
+        features: Array.isArray(p.features) && p.features.length > 0 ? p.features : ["دسترسی به سالن بدنسازی", "کمد اختصاصی"],
+        description: p.description || "",
       };
     });
   }, [backendPlans]);
 
   const handleSavePlan = async (planData: Omit<PlanItem, "id">, editId?: string) => {
-    const cleanPrice = String(planData.price)
-      .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
-      .replace(/[^\d.-]/g, "");
-    const rawPrice = parseFloat(cleanPrice) || 0;
-
-    let duration_days = 30;
-    if (planData.duration.includes("۱۲") || planData.duration.includes("سال")) {
-      duration_days = 365;
-    } else if (planData.duration.includes("۶")) {
-      duration_days = 180;
-    } else if (planData.duration.includes("۳")) {
-      duration_days = 90;
-    } else if (planData.duration.includes("۱")) {
-      duration_days = 30;
-    } else {
-      const match = planData.duration.match(/\d+/);
-      if (match) duration_days = parseInt(match[0], 10);
-    }
+    const rawPrice = planData.priceRaw || parseFloat(String(planData.price).replace(/[^\d.-]/g, "")) || 0;
+    const durationDays = planData.durationDays || 30;
 
     try {
       if (editId) {
@@ -83,39 +87,46 @@ export default function AdminPlansPage() {
           id: editId,
           payload: {
             name: planData.name,
-            duration_days,
+            duration_days: durationDays,
             price: rawPrice,
             description: planData.description || planData.hint,
             features: planData.features,
             is_active: planData.status === "active",
           },
         });
+        showToast(`پلن عضویت «${planData.name}» با موفقیت ویرایش شد.`, "success");
+        logActivity({ type: "EDIT", text: `ویرایش پلن عضویت باشگاه: ${planData.name}` });
       } else {
         await createPlanMutation.mutateAsync({
           name: planData.name,
-          duration_days,
+          duration_days: durationDays,
           price: rawPrice,
           description: planData.description || planData.hint,
           features: planData.features,
           is_active: planData.status === "active",
         });
+        showToast(`پلن عضویت جدید «${planData.name}» با موفقیت ذخیره و فعال گردید.`, "success");
+        logActivity({ type: "EDIT", text: `تعریف پلن عضویت جدید باشگاه: ${planData.name}` });
       }
-    } catch {
-      // Handled
+      setIsModalOpen(false);
+      setEditingPlan(null);
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || "خطا در ذخیره پلن در سامانه";
+      showToast(msg, "error");
+      throw err;
     }
   };
 
   const handleDeletePlan = async (id: string) => {
-    if (typeof window !== "undefined" && window.confirm("آیا از غیرفعال‌سازی این پلن اطمینان دارید؟")) {
+    const targetPlan = plans.find((p) => p.id === id);
+    const planName = targetPlan?.name || "پلن";
+    if (typeof window !== "undefined" && window.confirm(`آیا از غیرفعال‌سازی پلن «${planName}» اطمینان دارید؟`)) {
       try {
-        await updatePlanMutation.mutateAsync({
-          id,
-          payload: {
-            is_active: false,
-          },
-        });
-      } catch {
-        // Handled
+        await deletePlanMutation.mutateAsync(id);
+        showToast(`پلن «${planName}» با موفقیت غیرفعال و بازنشسته شد.`, "success");
+        logActivity({ type: "ALERT", text: `غیرفعال‌سازی پلن عضویت باشگاه: ${planName}` });
+      } catch (err: any) {
+        showToast(err?.message || "خطا در غیرفعال‌سازی پلن", "error");
       }
     }
   };
@@ -123,21 +134,42 @@ export default function AdminPlansPage() {
   const handleToggleStatus = async (id: string) => {
     const plan = plans.find((p) => p.id === id);
     if (!plan) return;
+    const nextStatus = plan.status !== "active";
     try {
       await updatePlanMutation.mutateAsync({
         id,
         payload: {
-          is_active: plan.status !== "active",
+          is_active: nextStatus,
         },
       });
-    } catch {
-      // Handled
+      showToast(`وضعیت پلن «${plan.name}» به ${nextStatus ? "فعال" : "غیرفعال"} تغییر یافت.`, "success");
+    } catch (err: any) {
+      showToast(err?.message || "خطا در تغییر وضعیت پلن", "error");
     }
   };
 
-  // Gym's own platform subscription data
+  // Gym's own platform subscription data with local upgrade override fallback
+  const userScope = getCurrentUserScope();
+  let localOverrideCode: string | null = null;
+  if (typeof window !== "undefined") {
+    try {
+      const rawOverride = localStorage.getItem(`titan_gym_plan_override_${userScope}`);
+      if (rawOverride) {
+        const parsed = JSON.parse(rawOverride);
+        localOverrideCode = parsed.code || null;
+      }
+    } catch {}
+  }
+
   const currentSub = gym?.subscription;
-  const currentPlanCode = typeof currentSub?.plan === "string" ? currentSub.plan : "FREE";
+  const rawPlanProp = currentSub?.plan;
+  const serverPlanCode =
+    typeof rawPlanProp === "string"
+      ? rawPlanProp
+      : (rawPlanProp as any)?.code || (gym as any)?.plan || "FREE";
+
+  const currentPlanCode = (localOverrideCode || serverPlanCode || "FREE").toUpperCase();
+
   const planLabels: Record<string, string> = {
     FREE: "آزمایشی رایگان",
     BASIC: "پلن پایه",
@@ -146,15 +178,45 @@ export default function AdminPlansPage() {
   };
   const currentPlanName = planLabels[currentPlanCode] || "آزمایشی رایگان";
 
-  const allSystemPlans: SystemPlan[] = (systemPlans && systemPlans.length > 0) ? systemPlans : [
-    { code: "FREE", name: "رایگان / دمو", price: "0", trial_days: 14, member_limit: 50, coach_limit: 2 },
+  const defaultSystemPlans: SystemPlan[] = [
+    { code: "FREE", name: "رایگان / دمو", price: null, trial_days: 90, member_limit: 50, coach_limit: 3 },
     { code: "BASIC", name: "پایه", price: "1200000", trial_days: 0, member_limit: 200, coach_limit: 5 },
     { code: "PRO", name: "حرفه‌ای", price: "2900000", trial_days: 0, member_limit: 1000, coach_limit: 20 },
     { code: "ENTERPRISE", name: "سازمانی", price: null, trial_days: 0, member_limit: null, coach_limit: null },
   ];
 
+  const allSystemPlans: SystemPlan[] =
+    systemPlans && systemPlans.length > 0 ? systemPlans : defaultSystemPlans;
+
   return (
     <div className="flex min-h-screen bg-bg text-ink">
+      {/* Toast Feedback Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 left-1/2 z-110 -translate-x-1/2 animate-in fade-in slide-in-from-top-4 duration-200">
+          <div
+            className={`flex items-center gap-2.5 rounded-[14px] px-5 py-3 shadow-[0_12px_40px_rgba(15,23,42,0.18)] ${
+              toastMessage.type === "success"
+                ? "bg-ink text-white border border-primary/40"
+                : "bg-red-600 text-white border border-red-700"
+            }`}
+          >
+            {toastMessage.type === "success" ? (
+              <CheckCircle2 className="h-5 w-5 text-primary stroke-[2.5]" />
+            ) : (
+              <AlertCircle className="h-5 w-5 text-white stroke-[2.5]" />
+            )}
+            <span className="text-[13.5px] font-bold">{toastMessage.text}</span>
+            <button
+              type="button"
+              onClick={() => setToastMessage(null)}
+              className="mr-2 text-white/70 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar Navigation */}
       <AdminSidebar
         isOpen={sidebarOpen}
@@ -166,7 +228,7 @@ export default function AdminPlansPage() {
         {/* Topbar Header */}
         <AdminTopbar
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-          searchPlaceholder="جستجو در پلن‌ها و تعرفه‌ها…"
+          searchPlaceholder="جستجو در تعرفه‌ها و پلن‌های عضویت…"
         />
 
         {/* Page Content */}
@@ -175,10 +237,10 @@ export default function AdminPlansPage() {
           <div className="mb-[24px] flex flex-wrap items-end justify-between gap-[16px]">
             <div>
               <h1 className="text-[22px] font-extrabold tracking-[-0.01em] text-ink min-[640px]:text-[26px]">
-                پلن‌ها و قیمت‌گذاری
+                پلن‌ها و تعرفه‌ها
               </h1>
               <div className="mt-[5px] text-[14px] text-ink-faint">
-                مدیریت تعرفه‌های عضویت باشگاه و وضعیت اشتراک در تیتان جیم
+                مدیریت پلن‌های عضویت ورزشکاران و ارتقای اشتراک پلتفرم تیتان جیم
               </div>
             </div>
 
@@ -189,13 +251,13 @@ export default function AdminPlansPage() {
                   setEditingPlan(null);
                   setIsModalOpen(true);
                 }}
-                className="inline-flex items-center justify-center gap-[8px] rounded-[10px] bg-ink px-[14px] py-[8px] text-[13px] font-bold text-white transition-all duration-200 hover:-translate-y-[1px] hover:bg-primary-dark hover:shadow-[0_20px_50px_rgba(22,224,160,0.25)] active:translate-y-0"
+                className="inline-flex items-center justify-center gap-[8px] rounded-[10px] bg-ink px-[16px] py-[9px] text-[13px] font-bold text-white transition-all duration-200 hover:-translate-y-[1px] hover:bg-primary-dark hover:shadow-[0_20px_50px_rgba(22,224,160,0.25)] active:translate-y-0 cursor-pointer shadow-xs"
               >
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   className="h-[16px] w-[16px]"
@@ -208,23 +270,23 @@ export default function AdminPlansPage() {
           </div>
 
           {/* Gym Current Subscription Banner (from Django GET /gyms/me/) */}
-          <div className="mb-[24px] overflow-hidden rounded-[16px] border border-primary/40 bg-gradient-to-l from-tint via-surface to-surface p-[20px] shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+          <div className="mb-[24px] overflow-hidden rounded-[18px] border border-primary/40 bg-gradient-to-l from-tint via-surface to-surface p-[22px] shadow-[0_2px_12px_rgba(15,23,42,0.04)]">
             <div className="flex flex-wrap items-center justify-between gap-[16px]">
               <div className="flex items-center gap-[14px]">
-                <span className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[14px] bg-primary/20 text-primary-dark">
-                  <Shield className="h-[24px] w-[24px]" />
+                <span className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[16px] bg-primary/20 text-primary-dark shadow-xs">
+                  <Shield className="h-[26px] w-[26px]" />
                 </span>
                 <div>
-                  <div className="flex items-center gap-[8px]">
-                    <span className="text-[16px] font-black text-ink">
-                      اشتراک فعلی باشگاه: {currentPlanName}
+                  <div className="flex items-center gap-[10px]">
+                    <span className="text-[17px] font-black text-ink">
+                      اشتراک فعال پلتفرم: {currentPlanName}
                     </span>
-                    <span className="rounded-full bg-tint px-[8px] py-[2px] text-[11px] font-bold text-primary-dark border border-primary/30">
-                      {currentSub?.is_active ? "فعال" : "دوره آزمایشی"}
+                    <span className="rounded-full bg-tint px-[10px] py-[2.5px] text-[11.5px] font-bold text-primary-dark border border-primary/30">
+                      {currentPlanCode !== "FREE" || currentSub?.is_active ? "فعال و بدون محدودیت زمانی" : "دوره آزمایشی (۹۰ روز)"}
                     </span>
                   </div>
-                  <p className="mt-[3px] text-[12.5px] text-ink-faint">
-                    سقف اعضا: {currentPlanCode === "FREE" ? "۵۰ نفر" : currentPlanCode === "BASIC" ? "۲۰۰ نفر" : "نامحدود"} · سقف مربیان: {currentPlanCode === "FREE" ? "۲ نفر" : currentPlanCode === "BASIC" ? "۵ نفر" : "نامحدود"}
+                  <p className="mt-[4px] text-[13px] text-ink-faint">
+                    سقف اعضا: {currentPlanCode === "FREE" ? "۵۰ نفر" : currentPlanCode === "BASIC" ? "۲۰۰ نفر" : currentPlanCode === "PRO" ? "۱,۰۰۰ نفر" : "نامحدود"} · سقف مربیان: {currentPlanCode === "FREE" ? "۳ نفر" : currentPlanCode === "BASIC" ? "۵ نفر" : "نامحدود"}
                   </p>
                 </div>
               </div>
@@ -232,14 +294,11 @@ export default function AdminPlansPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setUpgradeSuccess(null);
-                    setIsUpgradeModalOpen(true);
-                    setTableActiveTab("system_plans");
-                  }}
-                  className="rounded-[10px] bg-ink px-[16px] py-[9px] text-[13px] font-bold text-white transition-all hover:bg-primary-dark cursor-pointer shadow-xs"
+                  onClick={() => setIsUpgradeModalOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-[12px] bg-ink px-[18px] py-[10px] text-[13.5px] font-bold text-white transition-all hover:bg-primary-dark cursor-pointer shadow-xs"
                 >
-                  مشاهده و ارتقای تعرفه‌های اشتراک
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <span>ارتقای اشتراک و پرداخت آنلاین</span>
                 </button>
               </div>
             </div>
@@ -274,17 +333,17 @@ export default function AdminPlansPage() {
               setIsModalOpen(true);
             }}
             onUpgradeSystemPlan={(sp) => {
-              setUpgradeSuccess(null);
               setIsUpgradeModalOpen(true);
             }}
           />
         </main>
       </div>
 
-      {/* Plan Add / Edit Modal */}
+      {/* Plan Add / Edit Modal (Django MembershipPlan) */}
       <PlanModal
         isOpen={isModalOpen}
         editPlan={editingPlan}
+        isSubmitting={createPlanMutation.isPending || updatePlanMutation.isPending}
         onClose={() => {
           setIsModalOpen(false);
           setEditingPlan(null);
@@ -292,139 +351,17 @@ export default function AdminPlansPage() {
         onSave={handleSavePlan}
       />
 
-      {/* System Subscription Upgrade Modal */}
-      {isUpgradeModalOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-ink/50 backdrop-blur-xs transition-opacity"
-            onClick={() => {
-              setIsUpgradeModalOpen(false);
-              setUpgradeSuccess(null);
-            }}
-          />
-          <div className="relative z-10 w-full max-w-[850px] overflow-hidden rounded-[20px] border border-border bg-surface p-6 shadow-[0_20px_60px_rgba(15,23,42,0.15)] animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="mb-5 flex items-center justify-between border-b border-border pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary-dark" />
-                  <h3 className="text-[18px] font-black text-ink">
-                    ارتقای اشتراک نرم‌افزار تیتان جیم
-                  </h3>
-                </div>
-                <p className="mt-1 text-[13px] text-ink-faint">
-                  تعرفه متناسب با ظرفیت باشگاه و تعداد ورزشکاران و مربیان خود را انتخاب کنید
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsUpgradeModalOpen(false);
-                  setUpgradeSuccess(null);
-                }}
-                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-ink-faint hover:bg-bg hover:text-ink cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Success alert if triggered */}
-            {upgradeSuccess ? (
-              <div className="my-6 rounded-[16px] border border-primary/40 bg-tint/60 p-6 text-center animate-in fade-in">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/20 text-primary-dark">
-                  <Check className="h-6 w-6 stroke-[3]" />
-                </div>
-                <h4 className="text-[16px] font-extrabold text-ink">درخواست ارتقا ثبت گردید</h4>
-                <p className="mt-1 text-[13.5px] text-ink-soft">
-                  {upgradeSuccess}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsUpgradeModalOpen(false);
-                    setUpgradeSuccess(null);
-                  }}
-                  className="mt-4 rounded-[10px] bg-ink px-6 py-2 text-[13px] font-bold text-white transition-all hover:bg-primary-dark cursor-pointer"
-                >
-                  متوجه شدم
-                </button>
-              </div>
-            ) : (
-              /* Plans Grid */
-              <div className="grid grid-cols-1 gap-4 min-[640px]:grid-cols-2 min-[800px]:grid-cols-4">
-                {allSystemPlans.map((sp) => {
-                  const isCurrent = sp.code?.toUpperCase() === currentPlanCode.toUpperCase();
-                  const priceNum = sp.price ? parseFloat(sp.price) : 0;
-                  const priceFormatted =
-                    sp.code === "FREE"
-                      ? "رایگان"
-                      : sp.price === null
-                        ? "سفارشی"
-                        : priceNum >= 1_000_000
-                          ? `${(priceNum / 1_000_000).toLocaleString("fa-IR")} م`
-                          : `${priceNum.toLocaleString("fa-IR")} تومان`;
-
-                  return (
-                    <div
-                      key={sp.code}
-                      className={`flex flex-col justify-between rounded-[16px] border p-4.5 transition-all ${
-                        isCurrent
-                          ? "border-primary bg-tint/60 shadow-[0_8px_24px_rgba(22,224,160,0.15)] ring-2 ring-primary/40"
-                          : "border-border bg-surface hover:border-border/80 hover:shadow-xs"
-                      }`}
-                    >
-                      <div>
-                        {isCurrent && (
-                          <span className="mb-2 inline-block rounded-full bg-primary px-2.5 py-0.5 text-[10.5px] font-black text-[#006633]">
-                            اشتراک فعال فعلی شما
-                          </span>
-                        )}
-                        <h4 className="text-[15.5px] font-extrabold text-ink">{sp.name}</h4>
-                        <div className="mt-2 text-[20px] font-black text-ink">
-                          {priceFormatted}
-                        </div>
-                        <div className="mt-0.5 text-[11.5px] text-ink-faint">
-                          {sp.code === "FREE" ? `${toPersianDigits(sp.trial_days || 14)} روز آزمایشی` : "ماهانه"}
-                        </div>
-
-                        <ul className="mt-3.5 space-y-2 text-[12px] text-ink-soft">
-                          <li className="flex items-center gap-1.5">
-                            <Check className="h-3.5 w-3.5 text-primary-dark shrink-0 stroke-[2.5]" />
-                            <span>سقف اعضا: {sp.member_limit ? `${toPersianDigits(sp.member_limit)} نفر` : "نامحدود"}</span>
-                          </li>
-                          <li className="flex items-center gap-1.5">
-                            <Check className="h-3.5 w-3.5 text-primary-dark shrink-0 stroke-[2.5]" />
-                            <span>سقف مربیان: {sp.coach_limit ? `${toPersianDigits(sp.coach_limit)} نفر` : "نامحدود"}</span>
-                          </li>
-                          <li className="flex items-center gap-1.5">
-                            <Check className="h-3.5 w-3.5 text-primary-dark shrink-0 stroke-[2.5]" />
-                            <span>پشتیبانی و به‌روزرسانی سامانه</span>
-                          </li>
-                        </ul>
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={isCurrent}
-                        onClick={() => {
-                          setUpgradeSuccess(`درخواست ارتقای اشتراک به پلن «${sp.name}» ثبت شد. کارشناسان تیتان جیم به زودی جهت هماهنگی و فعال‌سازی با شما تماس خواهند گرفت.`);
-                        }}
-                        className={`mt-4 w-full rounded-[10px] py-2 text-[12.5px] font-bold transition-all ${
-                          isCurrent
-                            ? "bg-bg text-ink-faint cursor-default"
-                            : "bg-ink text-white hover:bg-primary-dark cursor-pointer shadow-xs"
-                        }`}
-                      >
-                        {isCurrent ? "پلن کنونی" : "ارتقا به این پلن"}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Titan SaaS Subscription Upgrade & Simulated Gateway Modal */}
+      <UpgradePlanModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        systemPlans={allSystemPlans}
+        currentPlanCode={currentPlanCode}
+        gymName={gym?.name || "باشگاه"}
+        onUpgradeSuccess={(upgradedPlan, refId) => {
+          showToast(`اشتراک باشگاه با موفقیت به پلن «${upgradedPlan.name}» ارتقا یافت. (کد پیگیری: ${refId})`, "success");
+        }}
+      />
     </div>
   );
 }

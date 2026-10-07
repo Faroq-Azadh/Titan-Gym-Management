@@ -161,7 +161,7 @@ export default function AdminProfilePage() {
                 پروفایل مدیر
               </h1>
               <div className="mt-[5px] text-[14px] text-ink-faint">
-                مدیریت حساب کاربری، اطلاعات باشگاه و تنظیمات امنیتی متصل به پنل جنگو
+                مدیریت حساب کاربری، اطلاعات باشگاه و تنظیمات امنیتی سامانه
               </div>
             </div>
 

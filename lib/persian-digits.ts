@@ -55,3 +55,46 @@ export function extractDigitsOnly(value: string): string {
   if (!value) return "";
   return normalizeDigits(value).replace(/\D/g, "");
 }
+
+/**
+ * Converts a monetary number (in Tomans) to Persian words.
+ * E.g., 1200000 -> "یک میلیون و دویست هزار تومان"
+ */
+export function formatPriceToWords(num: number): string {
+  if (!num || isNaN(num) || num <= 0) return "";
+  const yekan = ["", "یک", "دو", "سه", "چهار", "پنج", "شش", "هفت", "هشت", "نه"];
+  const dahgan1 = ["ده", "یازده", "دوازده", "سیزده", "چهارده", "پانزده", "شانزده", "هفده", "هجده", "نوزده"];
+  const dahgan = ["", "", "بیست", "سی", "چهل", "پنجاه", "شصت", "هفتاد", "هشتاد", "نود"];
+  const sadgan = ["", "صد", "دویست", "سیصد", "چهارصد", "پانصد", "ششصد", "هفتصد", "هشتصد", "نهصد"];
+  const scales = ["", "هزار", "میلیون", "میلیارد"];
+
+  function threeDigitsToWords(n: number): string {
+    const s: string[] = [];
+    const c = Math.floor(n / 100);
+    const d = Math.floor((n % 100) / 10);
+    const y = n % 10;
+    if (c > 0) s.push(sadgan[c]);
+    if (d === 1) {
+      s.push(dahgan1[y]);
+    } else {
+      if (d > 1) s.push(dahgan[d]);
+      if (y > 0) s.push(yekan[y]);
+    }
+    return s.join(" و ");
+  }
+
+  const parts: string[] = [];
+  let scaleIdx = 0;
+  let remaining = Math.floor(num);
+  while (remaining > 0) {
+    const chunk = remaining % 1000;
+    if (chunk > 0) {
+      const chunkWords = threeDigitsToWords(chunk);
+      const scaleName = scales[scaleIdx];
+      parts.unshift(scaleName ? `${chunkWords} ${scaleName}` : chunkWords);
+    }
+    remaining = Math.floor(remaining / 1000);
+    scaleIdx++;
+  }
+  return parts.length > 0 ? `${parts.join(" و ")} تومان` : "";
+}

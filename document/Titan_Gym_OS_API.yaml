@@ -1193,6 +1193,65 @@ paths:
               schema:
                 $ref: '#/components/schemas/MemberDetail'
           description: ''
+  /members/{id}/memberships/:
+    post:
+      operationId: members_memberships_create
+      description: |-
+        POST /members/{id}/memberships/ — owner: enroll a member in a plan and
+        record the payment (first purchase, renewal or plan change). Creates a
+        Membership starting today and a Payment, atomically. The member's
+        previous ACTIVE membership is closed (CANCELED).
+      summary: Enroll a member in a plan and record the payment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipEnroll'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MembershipEnroll'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MembershipEnroll'
+        required: true
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipEnrollResponse'
+          description: ''
+  /members/available-plans/:
+    get:
+      operationId: members_available_plans_list
+      description: 'GET /members/available-plans/ — member: the active plans of their
+        own gym.'
+      tags:
+      - members
+      security:
+      - jwtHeaderAuth: []
+      - jwtCookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MemberPlan'
+          description: ''
   /members/dashboard/:
     get:
       operationId: members_dashboard_retrieve
@@ -4060,6 +4119,41 @@ components:
       - current
       - history
       - payment_summary
+    MemberPlan:
+      type: object
+      description: |-
+        Member-facing plan card: what the member sees when browsing their
+        gym's plans. Same fields as the owner card minus owner-only
+        bookkeeping (is_active — only active plans are listed — and
+        active_members).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        duration_days:
+          type: integer
+          readOnly: true
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,0})?$
+          readOnly: true
+        description:
+          type: string
+          readOnly: true
+        features:
+          readOnly: true
+      required:
+      - description
+      - duration_days
+      - features
+      - id
+      - name
+      - price
     MemberSelfUpdate:
       type: object
       description: |-
@@ -4170,6 +4264,41 @@ components:
       - plan_name
       - start_date
       - status
+    MembershipEnroll:
+      type: object
+      description: |-
+        Owner enrolls a member in a plan (first purchase, renewal or plan
+        change) and records the payment for it in one step.
+
+        `amount` is optional — it defaults to the plan price. Pass it only for
+        a discount / partial amount.
+      properties:
+        plan_id:
+          type: string
+          format: uuid
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,0})?$
+        note:
+          type: string
+          maxLength: 255
+      required:
+      - plan_id
+    MembershipEnrollResponse:
+      type: object
+      description: Response shape for POST /members/{id}/memberships/ (Swagger only).
+      properties:
+        detail:
+          type: string
+        membership:
+          $ref: '#/components/schemas/Membership'
+        payment:
+          $ref: '#/components/schemas/PaymentAdmin'
+      required:
+      - detail
+      - membership
+      - payment
     MembershipPaymentSummary:
       type: object
       properties:

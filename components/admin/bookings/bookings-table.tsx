@@ -189,7 +189,7 @@ export function BookingsTable({
       if (onCloseAddModal) onCloseAddModal();
     } catch (err: any) {
       console.error("Booking error:", err);
-      const detailMsg = err?.response?.data?.detail || err?.data?.detail || err?.message || "خطا در ثبت رزرو در سرور جنگو";
+      const detailMsg = err?.response?.data?.detail || err?.data?.detail || err?.message || "خطا در ثبت رزرو در سرور";
       setSubmitError(typeof detailMsg === "string" ? detailMsg : JSON.stringify(detailMsg));
     } finally {
       setIsSubmitting(false);
@@ -486,7 +486,7 @@ export function BookingsTable({
                   ثبت رزرو جدید کلاس
                 </h3>
                 <p className="text-[12px] text-ink-faint mt-1">
-                  انتخاب کلاس و عضو بر اساس اطلاعات سرور و پنل جنگو
+                  انتخاب کلاس و عضو بر اساس اطلاعات سامانه
                 </p>
               </div>
               <button
@@ -502,7 +502,7 @@ export function BookingsTable({
               <div className="mb-[14px] rounded-[10px] border border-[#F43F5E]/30 bg-[#FFF1F2] p-[12px] text-[13px] font-medium text-[#9F1239]">
                 <div className="font-bold flex items-center gap-1.5 mb-1">
                   <span>⚠️</span>
-                  <span>پیام سرور جنگو:</span>
+                  <span>پیام سرور:</span>
                 </div>
                 <div>{submitError}</div>
               </div>
@@ -626,7 +626,7 @@ export function BookingsTable({
                   disabled={isSubmitting}
                   className="rounded-[10px] bg-primary px-[20px] py-[9px] text-[13.5px] font-bold text-ink transition-all hover:bg-primary-dark hover:text-white cursor-pointer shadow-sm disabled:opacity-50"
                 >
-                  {isSubmitting ? "در حال ارسال به جنگو…" : "ثبت نهایی رزرو"}
+                  {isSubmitting ? "در حال ثبت اطلاعات…" : "ثبت نهایی رزرو"}
                 </button>
               </div>
             </form>

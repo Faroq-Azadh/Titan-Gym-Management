@@ -293,7 +293,7 @@ export function NewClassModal({
       onClose();
     } catch (err: any) {
       console.error("Failed to save class:", err);
-      let errorMsg = "خطا در برقراری ارتباط با سرور جنگو";
+      let errorMsg = "خطا در برقراری ارتباط با سرور";
       if (err?.response?.data) {
         const d = err.response.data;
         if (typeof d === "string") {

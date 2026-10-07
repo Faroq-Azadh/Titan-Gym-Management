@@ -36,7 +36,9 @@ export const plansService = {
    * GET /members/plans/
    */
   async getPlans(): Promise<MembershipPlanItem[]> {
-    return apiClient.get<MembershipPlanItem[]>("/members/plans/", { requiresAuth: true });
+    return apiClient.get<MembershipPlanItem[]>(ENDPOINTS.PLANS.MEMBERSHIP_LIST, {
+      requiresAuth: true,
+    });
   },
 
   /**
@@ -44,15 +46,54 @@ export const plansService = {
    * POST /members/plans/
    */
   async createPlan(payload: CreatePlanPayload): Promise<MembershipPlanItem> {
-    return apiClient.post<MembershipPlanItem>("/members/plans/", payload, { requiresAuth: true });
+    // Ensure price is formatted as a valid decimal string for DRF (e.g. "980000")
+    const formattedPrice =
+      typeof payload.price === "number"
+        ? Math.round(payload.price).toString()
+        : String(payload.price).replace(/[^\d.-]/g, "");
+
+    const normalizedPayload: CreatePlanPayload = {
+      ...payload,
+      price: formattedPrice,
+      is_active: payload.is_active !== undefined ? payload.is_active : true,
+    };
+
+    return apiClient.post<MembershipPlanItem>(
+      ENDPOINTS.PLANS.MEMBERSHIP_CREATE,
+      normalizedPayload,
+      { requiresAuth: true },
+    );
   },
 
   /**
    * Update an existing plan
    * PATCH /members/plans/{id}/
    */
-  async updatePlan(id: string | number, payload: Partial<CreatePlanPayload>): Promise<MembershipPlanItem> {
-    return apiClient.patch<MembershipPlanItem>(`/members/plans/${id}/`, payload, { requiresAuth: true });
+  async updatePlan(
+    id: string | number,
+    payload: Partial<CreatePlanPayload>,
+  ): Promise<MembershipPlanItem> {
+    const patchPayload: Partial<CreatePlanPayload> = { ...payload };
+    if (patchPayload.price !== undefined) {
+      patchPayload.price =
+        typeof patchPayload.price === "number"
+          ? Math.round(patchPayload.price).toString()
+          : String(patchPayload.price).replace(/[^\d.-]/g, "");
+    }
+
+    return apiClient.patch<MembershipPlanItem>(
+      ENDPOINTS.PLANS.MEMBERSHIP_DETAIL(id),
+      patchPayload,
+      { requiresAuth: true },
+    );
+  },
+
+  /**
+   * Retire / deactivate a plan (OpenAPI: No DELETE — Membership.plan is PROTECT; retire with is_active=false)
+   * PATCH /members/plans/{id}/ { is_active: false }
+   */
+  async deletePlan(id: string | number): Promise<MembershipPlanItem> {
+    return this.updatePlan(id, { is_active: false });
   },
 
   /**
@@ -60,6 +101,8 @@ export const plansService = {
    * GET /gyms/plans/
    */
   async getSystemPlans(): Promise<SystemPlan[]> {
-    return apiClient.get<SystemPlan[]>("/gyms/plans/", { requiresAuth: false });
+    return apiClient.get<SystemPlan[]>(ENDPOINTS.PLANS.SYSTEM_LIST, {
+      requiresAuth: false,
+    });
   },
 };

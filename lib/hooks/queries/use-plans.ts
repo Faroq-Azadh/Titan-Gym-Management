@@ -33,6 +33,7 @@ export function useCreatePlan() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["plans"] });
       queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
     },
   });
 }
@@ -45,6 +46,19 @@ export function useUpdatePlan() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["plans"] });
       queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
+}
+
+export function useDeletePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string | number) => plansService.deletePlan(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
     },
   });
 }

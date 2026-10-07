@@ -645,9 +645,9 @@ export function MembersTable({
       const msg =
         err?.detail ||
         err?.message ||
-        (typeof err === "string" ? err : "خطا در حذف عضو از پنل جنگو. لطفاً وضعیت ورود یا دسترسی را بررسی نمایید.");
+        (typeof err === "string" ? err : "خطا در حذف عضو از سامانه. لطفاً وضعیت ورود یا دسترسی را بررسی نمایید.");
       if (typeof window !== "undefined") {
-        window.alert(`خطا در حذف عضو از پنل جنگو:\n${msg}`);
+        window.alert(`خطا در حذف عضو:\n${msg}`);
       }
     } finally {
       setDeletingMemberId(null);
@@ -900,7 +900,7 @@ export function MembersTable({
       if (onCloseAddModal) onCloseAddModal();
     } catch (err: any) {
       console.error("Failed to create member in Django:", err);
-      let msg = "خطا در ثبت عضو در پنل جنگو. لطفاً اطلاعات را بررسی کنید.";
+      let msg = "خطا در ثبت عضو در سامانه. لطفاً اطلاعات را بررسی کنید.";
       if (err?.detail && typeof err.detail === "string") {
         msg = err.detail;
       } else if (err?.message && typeof err.message === "string") {
@@ -1129,7 +1129,7 @@ export function MembersTable({
                             onClick={() => handleDelete(item.id)}
                             className="inline-flex h-[32px] w-[32px] cursor-pointer items-center justify-center rounded-[8px] text-ink-faint transition-all duration-150 hover:bg-[#FFF1F2] hover:text-[#E11D48] disabled:opacity-50"
                             aria-label="حذف"
-                            title="حذف و غیرفعال‌سازی عضو در سرور جنگو"
+                            title="حذف و غیرفعال‌سازی عضو"
                           >
                             {deletingMemberId === item.id ? (
                               <Loader2 className="h-[15px] w-[15px] animate-spin text-[#E11D48]" />
@@ -1160,7 +1160,7 @@ export function MembersTable({
                   >
                     <div className="flex items-center justify-center gap-2 font-semibold">
                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                      <span>در حال دریافت اطلاعات اعضا از جنگو...</span>
+                      <span>در حال دریافت اطلاعات اعضا...</span>
                     </div>
                   </td>
                 </tr>
@@ -1174,7 +1174,7 @@ export function MembersTable({
                       هنوز عضوی در سیستم ثبت نشده است
                     </div>
                     <div className="mt-1 text-[12.5px] text-ink-faint">
-                      اعضای جدید را از طریق دکمه «افزودن عضو» ثبت کنید تا مستقیماً در پنل جنگو ذخیره شوند.
+                      اعضای جدید را از طریق دکمه «افزودن عضو» ثبت کنید تا مستقیماً در سامانه ذخیره شوند.
                     </div>
                     {onOpenAddModal && (
                       <button
@@ -1453,7 +1453,7 @@ export function MembersTable({
                   </h3>
                 </div>
                 <p className="mt-1 text-[12px] text-ink-faint">
-                  ثبت مستقیم در پنل جنگو و دیتابیس سامانه تیتان جیم
+                  ثبت مشخصات و اختصاص پلن عضویت در سامانه تیتان جیم
                 </p>
               </div>
               <button
@@ -1481,7 +1481,7 @@ export function MembersTable({
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Link>
                         <span className="text-[11.5px] text-[#9F1239]/80">
-                          (نشست شما در جنگو منقضی شده است)
+                          (نشست کاربری شما منقضی شده است)
                         </span>
                       </div>
                     )}
@@ -1932,7 +1932,7 @@ export function MembersTable({
                   {isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      <span>در حال ثبت در جنگو...</span>
+                      <span>در حال ثبت اطلاعات...</span>
                     </>
                   ) : (
                     <>
