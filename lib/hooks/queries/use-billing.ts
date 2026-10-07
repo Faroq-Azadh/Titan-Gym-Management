@@ -3,17 +3,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   billingService,
-  type PaymentItem,
+  type PaymentAdmin,
   type RecordPaymentPayload,
 } from "@/lib/api/services/billing.service";
 import { tokenStorage } from "@/lib/api/token";
+import { getCurrentUserScope } from "@/lib/session-scope";
 
-export function usePayments() {
-  return useQuery<PaymentItem[], Error>({
-    queryKey: ["payments"],
-    queryFn: () => billingService.getPayments(),
+export function usePayments(memberId?: string) {
+  const userScope = getCurrentUserScope();
+  return useQuery<PaymentAdmin[], Error>({
+    queryKey: ["payments", userScope, memberId || "all"],
+    queryFn: () => billingService.getPayments(memberId),
     enabled: typeof window !== "undefined" && tokenStorage.hasValidSession(),
-    staleTime: 30 * 1000,
+    staleTime: 15 * 1000,
   });
 }
 
@@ -24,6 +26,7 @@ export function useRecordPayment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["gym-reports"] });
     },
   });
 }
@@ -35,6 +38,7 @@ export function useRefundPayment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["gym-reports"] });
     },
   });
 }

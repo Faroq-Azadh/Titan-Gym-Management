@@ -3,11 +3,13 @@ export type PaymentMethod = "online" | "card" | "cash";
 
 export interface PaymentItem {
   id: string;
+  memberId?: string;
   txId: string;
   memberName: string;
   memberEmail: string;
   memberAvatar: string;
   avatarGradient: string;
+  avatarUrl?: string | null;
   amount: number;
   amountFormatted: string;
   isNegative?: boolean;
@@ -17,6 +19,7 @@ export interface PaymentItem {
   date: string;
   status: PaymentStatus;
   statusLabel: string;
+  recordedByName?: string;
 }
 
 export const INITIAL_PAYMENTS: PaymentItem[] = [

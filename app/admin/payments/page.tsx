@@ -28,12 +28,33 @@ export default function AdminPaymentsPage() {
 
   const monthlyRevenueStr = formatFullToman(totalRevenue);
 
-  const handleAddPayment = async (newPaymentData: Omit<PaymentItem, "id">) => {
+  const handleAddPayment = async (
+    newPaymentData: Omit<PaymentItem, "id"> & {
+      memberId?: string;
+      memberName?: string;
+      memberEmail?: string;
+    }
+  ) => {
     await addPayment(newPaymentData);
   };
 
   const handleUpdateStatus = async (id: string, newStatus: PaymentStatus) => {
     await updatePaymentStatus(id, newStatus);
+    setSelectedPayment((prev) => {
+      if (!prev || prev.id !== id) return prev;
+      const statusLabels: Record<PaymentStatus, string> = {
+        paid: "موفق",
+        pending: "در انتظار",
+        failed: "ناموفق",
+        refunded: "بازگشت‌خورده",
+      };
+      return {
+        ...prev,
+        status: newStatus,
+        statusLabel: statusLabels[newStatus],
+        isNegative: newStatus === "refunded",
+      };
+    });
   };
 
   const handleDeletePayment = (id: string) => {

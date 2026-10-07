@@ -246,8 +246,10 @@ export function PaymentsTable({
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-[40px] text-center text-ink-faint">
-                  هیچ تراکنشی با فیلترهای انتخابی یافت نشد.
+                <td colSpan={8} className="py-[48px] text-center text-[13.5px] text-ink-faint">
+                  {payments.length === 0
+                    ? "هنوز هیچ تراکنشی در سامانه ثبت نشده است. برای ثبت اولین واریزی روی دکمه «ثبت پرداخت» کلیک نمایید."
+                    : "هیچ تراکنشی با فیلترهای انتخابی یافت نشد."}
                 </td>
               </tr>
             ) : (
@@ -266,12 +268,20 @@ export function PaymentsTable({
                   {/* Member Cell */}
                   <td className="whitespace-nowrap p-[14px_20px]">
                     <div className="flex items-center gap-[11px]">
-                      <span
-                        className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] text-[12.5px] font-bold text-white shadow-xs"
-                        style={{ background: item.avatarGradient }}
-                      >
-                        {item.memberAvatar}
-                      </span>
+                      {item.avatarUrl ? (
+                        <img
+                          src={item.avatarUrl}
+                          alt={item.memberName}
+                          className="h-[36px] w-[36px] shrink-0 rounded-[10px] object-cover shadow-xs border border-border"
+                        />
+                      ) : (
+                        <span
+                          className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] text-[12.5px] font-bold text-white shadow-xs"
+                          style={{ background: item.avatarGradient }}
+                        >
+                          {item.memberAvatar}
+                        </span>
+                      )}
                       <div>
                         <div className="text-[13.5px] font-bold text-ink">
                           {item.memberName}

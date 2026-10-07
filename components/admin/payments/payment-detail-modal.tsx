@@ -35,7 +35,7 @@ export function PaymentDetailModal({
       />
 
       {/* Modal Box */}
-      <div className="relative z-10 w-full max-w-[500px] overflow-hidden rounded-[20px] border border-border bg-surface shadow-[0_20px_60px_rgba(15,23,42,0.15)] animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-[520px] overflow-hidden rounded-[20px] border border-border bg-surface shadow-[0_20px_60px_rgba(15,23,42,0.15)] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border bg-bg/60 p-[20px_24px]">
           <div>
@@ -56,7 +56,7 @@ export function PaymentDetailModal({
 
         {/* Content */}
         <div className="p-[24px]">
-          {/* Amount Badge Banner */}
+          {/* Amount Banner */}
           <div className="rounded-[14px] bg-bg p-[20px] text-center">
             <div className="text-[12.5px] font-bold text-ink-faint">
               مبلغ تراکنش
@@ -64,7 +64,7 @@ export function PaymentDetailModal({
             <div
               className={cn(
                 "mt-[6px] text-[28px] font-black",
-                payment.isNegative ? "text-[#9F1239]" : "text-ink",
+                payment.isNegative ? "text-[#9F1239]" : "text-ink"
               )}
             >
               {toPersianDigits(payment.amountFormatted)}
@@ -88,13 +88,13 @@ export function PaymentDetailModal({
               {payment.status === "failed" && (
                 <span className="inline-flex items-center gap-[6px] rounded-full bg-[#FFF1F2] px-[12px] py-[4px] text-[12.5px] font-bold text-[#9F1239]">
                   <AlertCircle className="h-[14px] w-[14px]" />
-                  تراکنش ناموفق
+                  تراکنش ناموفق / منقضی شده
                 </span>
               )}
               {payment.status === "refunded" && (
                 <span className="inline-flex items-center gap-[6px] rounded-full bg-[#F1F5F9] px-[12px] py-[4px] text-[12.5px] font-bold text-[#475569]">
                   <RotateCcw className="h-[14px] w-[14px]" />
-                  مبلغ عودت داده شده
+                  مبلغ عودت داده شده (استرداد)
                 </span>
               )}
             </div>
@@ -104,12 +104,30 @@ export function PaymentDetailModal({
           <div className="mt-[18px] divide-y divide-border rounded-[14px] border border-border bg-surface p-[4px_16px]">
             <div className="flex items-center justify-between py-[12px] text-[13px]">
               <span className="text-ink-faint">عضو پرداخت‌کننده:</span>
-              <span className="font-bold text-ink">{payment.memberName}</span>
+              <div className="flex items-center gap-[8px]">
+                {payment.avatarUrl ? (
+                  <img
+                    src={payment.avatarUrl}
+                    alt={payment.memberName}
+                    className="h-[28px] w-[28px] rounded-[8px] object-cover border border-border"
+                  />
+                ) : (
+                  <span
+                    className="flex h-[28px] w-[28px] items-center justify-center rounded-[8px] text-[11px] font-bold text-white"
+                    style={{ background: payment.avatarGradient }}
+                  >
+                    {payment.memberAvatar}
+                  </span>
+                )}
+                <span className="font-bold text-ink">{payment.memberName}</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between py-[12px] text-[13px]">
-              <span className="text-ink-faint">ایمیل / شناسه عضو:</span>
-              <span className="font-semibold text-ink-soft">{payment.memberEmail}</span>
-            </div>
+            {payment.memberEmail && (
+              <div className="flex items-center justify-between py-[12px] text-[13px]">
+                <span className="text-ink-faint">ایمیل یا تماس عضو:</span>
+                <span className="font-semibold text-ink-soft">{payment.memberEmail}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between py-[12px] text-[13px]">
               <span className="text-ink-faint">بابت / طرح عضویت:</span>
               <span className="font-bold text-ink">{payment.forTitle}</span>
@@ -122,6 +140,12 @@ export function PaymentDetailModal({
               <span className="text-ink-faint">تاریخ تراکنش:</span>
               <span className="font-bold text-ink">{toPersianDigits(payment.date)}</span>
             </div>
+            {payment.recordedByName && (
+              <div className="flex items-center justify-between py-[12px] text-[13px]">
+                <span className="text-ink-faint">ثبت‌شده توسط:</span>
+                <span className="font-semibold text-ink">{payment.recordedByName}</span>
+              </div>
+            )}
           </div>
 
           {/* Status Changer */}
@@ -137,7 +161,7 @@ export function PaymentDetailModal({
                   "rounded-[8px] p-[6px_8px] text-[11.5px] font-bold transition-all",
                   payment.status === "paid"
                     ? "bg-primary-dark text-white"
-                    : "bg-surface border border-border text-ink hover:bg-tint",
+                    : "bg-surface border border-border text-ink hover:bg-tint"
                 )}
               >
                 موفق
@@ -149,7 +173,7 @@ export function PaymentDetailModal({
                   "rounded-[8px] p-[6px_8px] text-[11.5px] font-bold transition-all",
                   payment.status === "pending"
                     ? "bg-[#F59E0B] text-white"
-                    : "bg-surface border border-border text-ink hover:bg-[#FFFBEB]",
+                    : "bg-surface border border-border text-ink hover:bg-[#FFFBEB]"
                 )}
               >
                 در انتظار
@@ -161,7 +185,7 @@ export function PaymentDetailModal({
                   "rounded-[8px] p-[6px_8px] text-[11.5px] font-bold transition-all",
                   payment.status === "failed"
                     ? "bg-[#F43F5E] text-white"
-                    : "bg-surface border border-border text-ink hover:bg-[#FFF1F2]",
+                    : "bg-surface border border-border text-ink hover:bg-[#FFF1F2]"
                 )}
               >
                 ناموفق
@@ -173,7 +197,7 @@ export function PaymentDetailModal({
                   "rounded-[8px] p-[6px_8px] text-[11.5px] font-bold transition-all",
                   payment.status === "refunded"
                     ? "bg-[#64748B] text-white"
-                    : "bg-surface border border-border text-ink hover:bg-bg",
+                    : "bg-surface border border-border text-ink hover:bg-bg"
                 )}
               >
                 بازگشت
