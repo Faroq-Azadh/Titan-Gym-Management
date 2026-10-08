@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { CoachSidebar } from "@/components/coach/coach-sidebar";
 import { CoachTopbar } from "@/components/coach/coach-topbar";
+import {
+  CoachAddMemberModal,
+  type NewStudentPayload,
+} from "@/components/coach/coach-add-member-modal";
 import { toPersianDigits } from "@/lib/persian-digits";
 import { cn } from "@/lib/utils";
 import { X, Check, Eye } from "lucide-react";
@@ -120,6 +124,336 @@ const INITIAL_STUDENTS: StudentItem[] = [
     phone: "۰۹۱۱۱۱۲۳۴۵۸",
     avatarColor: AVATAR_COLORS[7],
   },
+  {
+    id: "1032",
+    name: "علی پوراحمد",
+    program: "حجم — هفته ۵",
+    status: "active",
+    attendanceRate: 95,
+    lastSession: "امروز",
+    dueDate: "۲۵ مرداد",
+    phone: "۰۹۱۲۳۳۳۴۴۵۵",
+    avatarColor: AVATAR_COLORS[0],
+  },
+  {
+    id: "1033",
+    name: "فاطمه حسینی",
+    program: "تناسب اندام — هفته ۳",
+    status: "active",
+    attendanceRate: 90,
+    lastSession: "دیروز",
+    dueDate: "۱ شهریور",
+    phone: "۰۹۱۹۱۱۱۲۲۳۳",
+    avatarColor: AVATAR_COLORS[1],
+  },
+  {
+    id: "1034",
+    name: "مهدی احمدی",
+    program: "قدرت — هفته ۴",
+    status: "active",
+    attendanceRate: 93,
+    lastSession: "۲ روز پیش",
+    dueDate: "۱۰ مرداد",
+    phone: "۰۹۱۲۵۵۵۶۶۷۷",
+    avatarColor: AVATAR_COLORS[2],
+  },
+  {
+    id: "1035",
+    name: "زهرا موسوی",
+    program: "چربی‌سوزی — هفته ۲",
+    status: "active",
+    attendanceRate: 87,
+    lastSession: "امروز",
+    dueDate: "۲۰ شهریور",
+    phone: "۰۹۳۵۷۷۷۸۸۹۹",
+    avatarColor: AVATAR_COLORS[3],
+  },
+  {
+    id: "1036",
+    name: "حسین باقری",
+    program: "شروع — هفته ۳",
+    status: "active",
+    attendanceRate: 85,
+    lastSession: "۳ روز پیش",
+    dueDate: "۵ مرداد",
+    phone: "۰۹۱۲۹۹۹۰۰۱۱",
+    avatarColor: AVATAR_COLORS[4],
+  },
+  {
+    id: "1037",
+    name: "مریم کریمی",
+    program: "تناسب اندام — هفته ۶",
+    status: "active",
+    attendanceRate: 92,
+    lastSession: "دیروز",
+    dueDate: "۲۸ مرداد",
+    phone: "۰۹۱۸۴۴۴۵۵۶۶",
+    avatarColor: AVATAR_COLORS[5],
+  },
+  {
+    id: "1038",
+    name: "سینا جعفری",
+    program: "حجم — هفته ۲",
+    status: "active",
+    attendanceRate: 89,
+    lastSession: "امروز",
+    dueDate: "۱۲ شهریور",
+    phone: "۰۹۳۶۱۱۱۲۲۳۳",
+    avatarColor: AVATAR_COLORS[6],
+  },
+  {
+    id: "1039",
+    name: "نگار ابراهیمی",
+    program: "چربی‌سوزی — هفته ۴",
+    status: "active",
+    attendanceRate: 94,
+    lastSession: "دیروز",
+    dueDate: "۸ مرداد",
+    phone: "۰۹۳۰۲۲۲۳۳۴۴",
+    avatarColor: AVATAR_COLORS[7],
+  },
+  {
+    id: "1040",
+    name: "محمد رحیمی",
+    program: "قدرت — هفته ۳",
+    status: "active",
+    attendanceRate: 91,
+    lastSession: "امروز",
+    dueDate: "۱۷ شهریور",
+    phone: "۰۹۱۱۸۸۸۹۹۰۰",
+    avatarColor: AVATAR_COLORS[0],
+  },
+  {
+    id: "1041",
+    name: "آتنا شریفی",
+    program: "تناسب اندام — هفته ۱",
+    status: "active",
+    attendanceRate: 80,
+    lastSession: "۴ روز پیش",
+    dueDate: "۲۲ مرداد",
+    phone: "۰۹۱۹۳۳۳۴۴۵۵",
+    avatarColor: AVATAR_COLORS[1],
+  },
+  {
+    id: "1042",
+    name: "پویا طاهری",
+    program: "حجم — هفته ۶",
+    status: "active",
+    attendanceRate: 96,
+    lastSession: "امروز",
+    dueDate: "۳۰ مرداد",
+    phone: "۰۹۱۲۴۴۴۵۵۶۶",
+    avatarColor: AVATAR_COLORS[2],
+  },
+  {
+    id: "1043",
+    name: "شیما قاسمی",
+    program: "چربی‌سوزی — هفته ۳",
+    status: "active",
+    attendanceRate: 86,
+    lastSession: "دیروز",
+    dueDate: "۱۴ شهریور",
+    phone: "۰۹۳۵۳۳۳۴۴۵۵",
+    avatarColor: AVATAR_COLORS[3],
+  },
+  {
+    id: "1044",
+    name: "نوید فلاحی",
+    program: "قدرت — هفته ۱",
+    status: "active",
+    attendanceRate: 78,
+    lastSession: "۲ روز پیش",
+    dueDate: "۶ مرداد",
+    phone: "۰۹۱۸۵۵۵۶۶۷۷",
+    avatarColor: AVATAR_COLORS[4],
+  },
+  {
+    id: "1045",
+    name: "الهام زارعی",
+    program: "تناسب اندام — هفته ۵",
+    status: "active",
+    attendanceRate: 92,
+    lastSession: "امروز",
+    dueDate: "۱۹ مرداد",
+    phone: "۰۹۳۶۴۴۴۵۵۶۶",
+    avatarColor: AVATAR_COLORS[5],
+  },
+  {
+    id: "1046",
+    name: "دانیال عباسی",
+    program: "حجم — هفته ۳",
+    status: "active",
+    attendanceRate: 88,
+    lastSession: "۳ روز پیش",
+    dueDate: "۲۴ شهریور",
+    phone: "۰۹۳۰۵۵۵۶۶۷۷",
+    avatarColor: AVATAR_COLORS[6],
+  },
+  {
+    id: "1047",
+    name: "پریناز صالحی",
+    program: "شروع — هفته ۲",
+    status: "active",
+    attendanceRate: 83,
+    lastSession: "دیروز",
+    dueDate: "۹ مرداد",
+    phone: "۰۹۱۱۹۹۹۰۰۱۱",
+    avatarColor: AVATAR_COLORS[7],
+  },
+  {
+    id: "1048",
+    name: "سامان خسروی",
+    program: "قدرت — هفته ۶",
+    status: "active",
+    attendanceRate: 97,
+    lastSession: "امروز",
+    dueDate: "۲۷ مرداد",
+    phone: "۰۹۱۹۴۴۴۵۵۶۶",
+    avatarColor: AVATAR_COLORS[0],
+  },
+  {
+    id: "1049",
+    name: "فرنوش نوری",
+    program: "چربی‌سوزی — هفته ۵",
+    status: "active",
+    attendanceRate: 90,
+    lastSession: "دیروز",
+    dueDate: "۱۱ شهریور",
+    phone: "۰۹۱۲۶۶۶۷۷۸۸",
+    avatarColor: AVATAR_COLORS[1],
+  },
+  {
+    id: "1050",
+    name: "آرمان حیدری",
+    program: "حجم — هفته ۱",
+    status: "active",
+    attendanceRate: 75,
+    lastSession: "۴ روز پیش",
+    dueDate: "۱۳ مرداد",
+    phone: "۰۹۳۵۴۴۴۵۵۶۶",
+    avatarColor: AVATAR_COLORS[2],
+  },
+  {
+    id: "1051",
+    name: "رویا معتمدی",
+    program: "تناسب اندام — هفته ۴",
+    status: "active",
+    attendanceRate: 91,
+    lastSession: "امروز",
+    dueDate: "۱۶ شهریور",
+    phone: "۰۹۱۸۶۶۶۷۷۸۸",
+    avatarColor: AVATAR_COLORS[3],
+  },
+  {
+    id: "1052",
+    name: "احسان کاشانی",
+    program: "قدرت — هفته ۴",
+    status: "active",
+    attendanceRate: 94,
+    lastSession: "دیروز",
+    dueDate: "۳ شهریور",
+    phone: "۰۹۳۶۵۵۵۶۶۷۷",
+    avatarColor: AVATAR_COLORS[4],
+  },
+  {
+    id: "1053",
+    name: "ساناز کمالی",
+    program: "شروع — هفته ۱",
+    status: "active",
+    attendanceRate: 79,
+    lastSession: "۳ روز پیش",
+    dueDate: "۷ مرداد",
+    phone: "۰۹۳۰۶۶۶۷۷۸۸",
+    avatarColor: AVATAR_COLORS[5],
+  },
+  {
+    id: "1054",
+    name: "فرهاد امینی",
+    program: "حجم — هفته ۵",
+    status: "active",
+    attendanceRate: 93,
+    lastSession: "امروز",
+    dueDate: "۲۱ مرداد",
+    phone: "۰۹۱۱۷۷۷۸۸۹۹",
+    avatarColor: AVATAR_COLORS[6],
+  },
+  {
+    id: "1055",
+    name: "کامران یوسفی",
+    program: "چربی‌سوزی — هفته ۴",
+    status: "expiring",
+    attendanceRate: 84,
+    lastSession: "دیروز",
+    dueDate: "۶ تیر",
+    phone: "۰۹۱۹۵۵۵۶۶۷۷",
+    avatarColor: AVATAR_COLORS[7],
+  },
+  {
+    id: "1056",
+    name: "لادن افتخاری",
+    program: "حجم — هفته ۳",
+    status: "expiring",
+    attendanceRate: 88,
+    lastSession: "امروز",
+    dueDate: "۸ تیر",
+    phone: "۰۹۱۲۷۷۷۸۸۹۹",
+    avatarColor: AVATAR_COLORS[0],
+  },
+  {
+    id: "1057",
+    name: "سپهر نامدار",
+    program: "تناسب اندام — هفته ۶",
+    status: "expiring",
+    attendanceRate: 82,
+    lastSession: "۲ روز پیش",
+    dueDate: "۱۰ تیر",
+    phone: "۰۹۳۵۸۸۸۹۹۰۰",
+    avatarColor: AVATAR_COLORS[1],
+  },
+  {
+    id: "1058",
+    name: "شیدا بهرامی",
+    program: "شروع — هفته ۲",
+    status: "expired",
+    attendanceRate: 48,
+    lastSession: "۶ روز پیش",
+    dueDate: "۲۰ خرداد",
+    phone: "۰۹۱۸۷۷۷۸۸۹۹",
+    avatarColor: AVATAR_COLORS[2],
+  },
+  {
+    id: "1059",
+    name: "بردیا سلیمی",
+    program: "حجم — هفته ۳",
+    status: "active",
+    attendanceRate: 89,
+    lastSession: "دیروز",
+    dueDate: "۱۵ شهریور",
+    phone: "۰۹۱۲۸۸۸۹۹۰۰",
+    avatarColor: AVATAR_COLORS[3],
+  },
+  {
+    id: "1060",
+    name: "یاسمن فرهمند",
+    program: "تناسب اندام — هفته ۲",
+    status: "active",
+    attendanceRate: 91,
+    lastSession: "امروز",
+    dueDate: "۱۸ مرداد",
+    phone: "۰۹۱۹۲۲۲۳۳۴۴",
+    avatarColor: AVATAR_COLORS[4],
+  },
+  {
+    id: "1061",
+    name: "میلاد صادق‌پور",
+    program: "قدرت — هفته ۵",
+    status: "active",
+    attendanceRate: 94,
+    lastSession: "۳ روز پیش",
+    dueDate: "۲۶ مرداد",
+    phone: "۰۹۳۵۶۶۶۷۷۸۸",
+    avatarColor: AVATAR_COLORS[5],
+  },
 ];
 
 const STATUS_MAP = {
@@ -127,6 +461,8 @@ const STATUS_MAP = {
   expiring: { cls: "expiring", label: "رو به اتمام" },
   expired: { cls: "expired", label: "منقضی" },
 };
+
+const ITEMS_PER_PAGE = 8;
 
 export default function CoachStudentsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -138,16 +474,21 @@ export default function CoachStudentsPage() {
   // Modals / Details
   const [selectedStudent, setSelectedStudent] = useState<StudentItem | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newStudentName, setNewStudentName] = useState("");
-  const [newStudentProgram, setNewStudentProgram] = useState("حجم — هفته ۱");
-  const [newStudentDueDate, setNewStudentDueDate] = useState("۳۰ روز آینده");
-  const [isAddSuccess, setIsAddSuccess] = useState(false);
 
-  // Stats
-  const totalStudentsCount = 38;
-  const activeCount = 31;
-  const expiringCount = 5;
-  const expiredCount = 2;
+  // Stats dynamically computed from students state
+  const totalStudentsCount = students.length;
+  const activeCount = useMemo(
+    () => students.filter((s) => s.status === "active").length,
+    [students]
+  );
+  const expiringCount = useMemo(
+    () => students.filter((s) => s.status === "expiring").length,
+    [students]
+  );
+  const expiredCount = useMemo(
+    () => students.filter((s) => s.status === "expired").length,
+    [students]
+  );
 
   // Filtered rows
   const filteredStudents = useMemo(() => {
@@ -162,6 +503,18 @@ export default function CoachStudentsPage() {
     });
   }, [students, filter, searchQuery]);
 
+  // Reset to first page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, searchQuery]);
+
+  // Paginated rows for the active page
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / ITEMS_PER_PAGE));
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredStudents.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredStudents, currentPage]);
+
   const getInitials = (name: string) => {
     const parts = name.trim().split(/\s+/);
     if (parts.length >= 2) {
@@ -170,43 +523,86 @@ export default function CoachStudentsPage() {
     return name.slice(0, 2);
   };
 
-  const handleAddStudent = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newStudentName.trim()) return;
-
-    const newId = String(1032 + students.length);
+  const handleStudentAdded = (payload: NewStudentPayload) => {
+    const newId = String(1062 + students.length);
+    const fullName = `${payload.firstName} ${payload.lastName}`.trim();
     const newStudent: StudentItem = {
       id: newId,
-      name: newStudentName.trim(),
-      program: newStudentProgram,
+      name: fullName,
+      program: `${payload.goal} — ${payload.programType}`,
       status: "active",
       attendanceRate: 100,
       lastSession: "امروز",
-      dueDate: newStudentDueDate,
+      dueDate: payload.duration ? `${payload.duration} آینده` : "۳۰ روز آینده",
+      phone: payload.phone,
       avatarColor: AVATAR_COLORS[students.length % AVATAR_COLORS.length],
     };
 
     setStudents([newStudent, ...students]);
-    setIsAddSuccess(true);
-    setTimeout(() => {
-      setIsAddSuccess(false);
-      setIsAddModalOpen(false);
-      setNewStudentName("");
-    }, 1200);
   };
 
   const handleExport = () => {
+    // Prepend UTF-8 BOM (\uFEFF) so Microsoft Excel opens Persian characters without Mojibake
+    const BOM = "\uFEFF";
+
+    const headers = [
+      "ردیف",
+      "شناسه شاگرد",
+      "نام و نام خانوادگی",
+      "شماره تماس",
+      "برنامه تمرینی",
+      "وضعیت عضویت",
+      "درصد حضور",
+      "آخرین جلسه",
+      "سررسید عضویت",
+    ];
+
+    const escapeCsv = (val: string | number | undefined | null) => {
+      if (val === undefined || val === null) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    // Export all students in the coach roster (or filtered if user filtered)
+    const exportData =
+      filter === "all" && !searchQuery.trim()
+        ? students
+        : filteredStudents.length > 0
+        ? filteredStudents
+        : students;
+
+    const rows = exportData.map((s, index) => {
+      const statusLabel = STATUS_MAP[s.status]?.label || s.status;
+      return [
+        escapeCsv(index + 1),
+        escapeCsv(`#${s.id}`),
+        escapeCsv(s.name),
+        escapeCsv(s.phone || "—"),
+        escapeCsv(s.program),
+        escapeCsv(statusLabel),
+        escapeCsv(`${s.attendanceRate}٪`),
+        escapeCsv(s.lastSession),
+        escapeCsv(s.dueDate),
+      ].join(",");
+    });
+
     const csvContent =
-      "data:text/csv;charset=utf-8," +
-      encodeURIComponent(
-        ["نام,شناسه,برنامه,وضعیت,نرخ حضور,سررسید", ...filteredStudents.map((s) => `${s.name},#${s.id},${s.program},${s.status},${s.attendanceRate}%,${s.dueDate}`)].join("\n")
-      );
+      BOM + [headers.map(escapeCsv).join(","), ...rows].join("\r\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", csvContent);
-    link.setAttribute("download", `students-export-${Date.now()}.csv`);
+    link.href = url;
+    link.setAttribute(
+      "download",
+      `لیست_شاگردان_مربی_${new Date().toISOString().slice(0, 10)}.csv`
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -494,8 +890,8 @@ export default function CoachStudentsPage() {
                   </tr>
                 </thead>
                 <tbody id="stuBody">
-                  {filteredStudents.length > 0 ? (
-                    filteredStudents.map((stu) => {
+                  {paginatedStudents.length > 0 ? (
+                    paginatedStudents.map((stu) => {
                       const stat = STATUS_MAP[stu.status];
                       return (
                         <tr
@@ -540,7 +936,7 @@ export default function CoachStudentsPage() {
                             <button
                               type="button"
                               onClick={() => setSelectedStudent(stu)}
-                              className="row-action text-ink-faint w-[32px] h-[32px] rounded-[8px] inline-flex items-center justify-center transition-all duration-150 hover:bg-tint hover:text-primary-dark"
+                              className="row-action text-ink-faint w-[32px] h-[32px] rounded-[8px] inline-flex items-center justify-center transition-all duration-150 hover:bg-tint hover:text-primary-dark cursor-pointer"
                               aria-label="مشاهده"
                             >
                               <Eye className="h-4 w-4" />
@@ -572,7 +968,7 @@ export default function CoachStudentsPage() {
               >
                 قبلی
               </button>
-              {[1, 2, 3, 4, 5].map((pageNum) => (
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                 <button
                   key={pageNum}
                   type="button"
@@ -584,8 +980,8 @@ export default function CoachStudentsPage() {
               ))}
               <button
                 type="button"
-                disabled={currentPage === 5}
-                onClick={() => setCurrentPage((p) => Math.min(5, p + 1))}
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               >
                 بعدی
               </button>
@@ -669,104 +1065,13 @@ export default function CoachStudentsPage() {
         </div>
       )}
 
-      {/* Add Student Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-70 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-ink/40 backdrop-blur-[4px] transition-opacity"
-            onClick={() => setIsAddModalOpen(false)}
-          />
-          <div className="relative z-10 w-full max-w-[460px] rounded-[20px] border border-border bg-surface p-6 shadow-xl animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-border pb-4 mb-4">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-tint text-primary-dark">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                </span>
-                <div>
-                  <h3 className="text-[17px] font-extrabold text-ink">افزودن شاگرد جدید</h3>
-                  <p className="text-[12px] text-ink-faint">اختصاص شاگرد به ردیف‌های آموزشی شما</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-faint hover:bg-bg hover:text-ink"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {isAddSuccess ? (
-              <div className="flex flex-col items-center justify-center py-6 text-center animate-in fade-in">
-                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-tint text-primary-dark">
-                  <Check className="h-6 w-6 stroke-[3]" />
-                </span>
-                <h4 className="text-[16px] font-extrabold text-ink">شاگرد با موفقیت افزوده شد</h4>
-              </div>
-            ) : (
-              <form onSubmit={handleAddStudent} className="flex flex-col gap-4">
-                <div>
-                  <label className="mb-1.5 block text-[13px] font-bold text-ink">
-                    نام و نام خانوادگی <span className="text-[#F43F5E]">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newStudentName}
-                    onChange={(e) => setNewStudentName(e.target.value)}
-                    placeholder="مثال: پارسا کاظمی"
-                    className="w-full rounded-[12px] border border-border bg-surface px-3.5 py-2.5 text-[13.5px] text-ink focus:border-primary focus:bg-tint focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-[13px] font-bold text-ink">برنامه تمرینی اولیه</label>
-                  <input
-                    type="text"
-                    value={newStudentProgram}
-                    onChange={(e) => setNewStudentProgram(e.target.value)}
-                    placeholder="مثال: حجم — هفته ۱"
-                    className="w-full rounded-[12px] border border-border bg-surface px-3.5 py-2.5 text-[13.5px] text-ink focus:border-primary focus:bg-tint focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-[13px] font-bold text-ink">سررسید عضویت</label>
-                  <input
-                    type="text"
-                    value={newStudentDueDate}
-                    onChange={(e) => setNewStudentDueDate(e.target.value)}
-                    placeholder="۳۰ روز آینده"
-                    className="w-full rounded-[12px] border border-border bg-surface px-3.5 py-2.5 text-[13.5px] text-ink focus:border-primary focus:bg-tint focus:outline-none"
-                  />
-                </div>
-
-                <div className="mt-2 flex items-center justify-end gap-2.5 border-t border-border pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddModalOpen(false)}
-                    className="btn btn-outline btn-sm"
-                  >
-                    انصراف
-                  </button>
-                  <button type="submit" className="btn btn-primary btn-sm">
-                    ثبت شاگرد
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Add Student Modal Window (matching titan-gym-os-add-member.html) */}
+      <CoachAddMemberModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onStudentAdded={handleStudentAdded}
+        coachName="آرش رستمی"
+      />
     </div>
   );
 }
