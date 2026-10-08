@@ -109,7 +109,9 @@ export function LoginForm({ onSubmit, onSuccess }: LoginFormProps) {
       } else {
         // Direct users based on their role
         const role = res?.user?.role;
-        if (role === "OWNER" || role === "COACH") {
+        if (role === "COACH") {
+          router.push("/coach");
+        } else if (role === "OWNER") {
           router.push("/admin");
         } else {
           router.push("/admin"); // fallback to dashboard

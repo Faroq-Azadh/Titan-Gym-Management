@@ -126,7 +126,11 @@ export function OtpForm({ onVerify, onSuccess }: OtpFormProps) {
       } else {
         const user = "user" in res ? res.user : null;
         if (user || tokenStorage.hasValidSession()) {
-          router.push("/admin");
+          if (user?.role === "COACH") {
+            router.push("/coach");
+          } else {
+            router.push("/admin");
+          }
         } else {
           setOtpError("کد تأیید شد اما بارگذاری اطلاعات حساب با مشکل مواجه شد. لطفاً دوباره امتحان کنید.");
         }

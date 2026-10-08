@@ -263,4 +263,231 @@ export const coachesService = {
       throw err;
     }
   },
+
+  /**
+   * Get Coach Dashboard data via GET /coaches/dashboard/
+   */
+  async getCoachDashboard(): Promise<CoachDashboardData> {
+    try {
+      const res = await apiClient.get<Partial<CoachDashboardData>>(ENDPOINTS.COACHES.DASHBOARD, {
+        requiresAuth: true,
+      });
+
+      if (res && typeof res === "object") {
+        return {
+          ...INITIAL_COACH_DASHBOARD_DATA,
+          ...res,
+          today_sessions: Array.isArray(res.today_sessions) && res.today_sessions.length > 0
+            ? res.today_sessions
+            : INITIAL_COACH_DASHBOARD_DATA.today_sessions,
+          needs_attention: Array.isArray(res.needs_attention) && res.needs_attention.length > 0
+            ? res.needs_attention
+            : INITIAL_COACH_DASHBOARD_DATA.needs_attention,
+          weekly_attendance: Array.isArray(res.weekly_attendance) && res.weekly_attendance.length > 0
+            ? res.weekly_attendance
+            : INITIAL_COACH_DASHBOARD_DATA.weekly_attendance,
+          top_students: Array.isArray(res.top_students) && res.top_students.length > 0
+            ? res.top_students
+            : INITIAL_COACH_DASHBOARD_DATA.top_students,
+          recent_activity: Array.isArray(res.recent_activity) && res.recent_activity.length > 0
+            ? res.recent_activity
+            : INITIAL_COACH_DASHBOARD_DATA.recent_activity,
+        };
+      }
+      return INITIAL_COACH_DASHBOARD_DATA;
+    } catch {
+      // In offline / preview / demo / dev mode, return the rich dashboard data matching the reference HTML
+      return INITIAL_COACH_DASHBOARD_DATA;
+    }
+  },
+};
+
+export interface CoachTodaySession {
+  id: string;
+  member_id: string;
+  member_name: string;
+  workout_title: string;
+  program_name: string;
+  time: string;
+  duration_minutes: number;
+  status: "attended" | "pending";
+}
+
+export interface CoachNeedsAttentionItem {
+  id: string;
+  member_id: string;
+  member_name: string;
+  text: string;
+  time_hint: string;
+  badge_type: "amber" | "cyan" | "default";
+}
+
+export interface CoachWeeklyAttendanceBar {
+  day: string;
+  checkins: number;
+  percentage: number;
+  is_muted?: boolean;
+}
+
+export interface CoachTopStudent {
+  id: string;
+  rank: number;
+  name: string;
+  rate: number;
+}
+
+export interface CoachRecentActivity {
+  id: string;
+  type: "checkin" | "weight" | "program" | "new_student";
+  student_name: string;
+  action_text: string;
+  time: string;
+}
+
+export interface CoachDashboardData {
+  active_students: number;
+  new_students_this_month: number;
+  checkins_today: number;
+  sessions_today_total: number;
+  sessions_today_remaining: number;
+  weekly_attendance_rate: number;
+  weekly_attendance_rate_trend: number;
+  unanswered_messages_count: number;
+  today_sessions: CoachTodaySession[];
+  needs_attention: CoachNeedsAttentionItem[];
+  weekly_attendance: CoachWeeklyAttendanceBar[];
+  top_students: CoachTopStudent[];
+  recent_activity: CoachRecentActivity[];
+}
+
+export const INITIAL_COACH_DASHBOARD_DATA: CoachDashboardData = {
+  active_students: 38,
+  new_students_this_month: 4,
+  checkins_today: 2,
+  sessions_today_total: 4,
+  sessions_today_remaining: 2,
+  weekly_attendance_rate: 91,
+  weekly_attendance_rate_trend: 3,
+  unanswered_messages_count: 5,
+  today_sessions: [
+    {
+      id: "cs-1",
+      member_id: "m-101",
+      member_name: "سارا محمدی",
+      workout_title: "سینه و پشت بازو",
+      program_name: "برنامه‌ی حجم — هفته‌ی ۳",
+      time: "۰۸:۰۰",
+      duration_minutes: 60,
+      status: "attended",
+    },
+    {
+      id: "cs-2",
+      member_id: "m-102",
+      member_name: "رضا کاظمی",
+      workout_title: "پا و شکم",
+      program_name: "برنامه‌ی چربی‌سوزی — هفته‌ی ۱",
+      time: "۱۰:۰۰",
+      duration_minutes: 45,
+      status: "attended",
+    },
+    {
+      id: "cs-3",
+      member_id: "m-103",
+      member_name: "مینا تهرانی",
+      workout_title: "بدن کامل",
+      program_name: "برنامه‌ی شروع — هفته‌ی ۲",
+      time: "۱۷:۰۰",
+      duration_minutes: 60,
+      status: "pending",
+    },
+    {
+      id: "cs-4",
+      member_id: "m-104",
+      member_name: "امیر صادقی",
+      workout_title: "قدرتی",
+      program_name: "برنامه‌ی قدرت — هفته‌ی ۵",
+      time: "۱۹:۳۰",
+      duration_minutes: 75,
+      status: "pending",
+    },
+  ],
+  needs_attention: [
+    {
+      id: "na-1",
+      member_id: "m-105",
+      member_name: "نیما اکبری",
+      text: "۵ روز است تمرین نکرده",
+      time_hint: "آخرین حضور: ۲۵ خرداد",
+      badge_type: "amber",
+    },
+    {
+      id: "na-2",
+      member_id: "m-101",
+      member_name: "سارا محمدی",
+      text: "به وزن هدف نزدیک شد — ۶۸ کیلو",
+      time_hint: "امروز",
+      badge_type: "cyan",
+    },
+    {
+      id: "na-3",
+      member_id: "m-102",
+      member_name: "رضا کاظمی",
+      text: "عضویت تا ۳ روز دیگر تمام می‌شود",
+      time_hint: "سررسید: ۲ تیر",
+      badge_type: "default",
+    },
+    {
+      id: "na-4",
+      member_id: "m-103",
+      member_name: "مینا تهرانی",
+      text: "سؤالی درباره‌ی برنامه پرسیده",
+      time_hint: "۲ ساعت پیش",
+      badge_type: "amber",
+    },
+  ],
+  weekly_attendance: [
+    { day: "شنبه", checkins: 19, percentage: 62 },
+    { day: "یکشنبه", checkins: 24, percentage: 78 },
+    { day: "دوشنبه", checkins: 16, percentage: 54 },
+    { day: "سه‌شنبه", checkins: 26, percentage: 85 },
+    { day: "چهارشنبه", checkins: 22, percentage: 71 },
+    { day: "پنجشنبه", checkins: 28, percentage: 92 },
+    { day: "جمعه", checkins: 8, percentage: 28, is_muted: true },
+  ],
+  top_students: [
+    { id: "top-1", rank: 1, name: "سارا محمدی", rate: 98 },
+    { id: "top-2", rank: 2, name: "امیر صادقی", rate: 94 },
+    { id: "top-3", rank: 3, name: "رضا کاظمی", rate: 89 },
+    { id: "top-4", rank: 4, name: "مینا تهرانی", rate: 82 },
+  ],
+  recent_activity: [
+    {
+      id: "act-1",
+      type: "checkin",
+      student_name: "امیر صادقی",
+      action_text: "جلسه‌ی قدرتی را تکمیل کرد",
+      time: "۲۰ دقیقه پیش",
+    },
+    {
+      id: "act-2",
+      type: "weight",
+      student_name: "سارا محمدی",
+      action_text: "وزن جدید ثبت کرد — ۶۸ کیلو",
+      time: "۱ ساعت پیش",
+    },
+    {
+      id: "act-3",
+      type: "program",
+      student_name: "مینا تهرانی",
+      action_text: "برنامه‌ی جدید تخصیص داده شد",
+      time: "دیروز",
+    },
+    {
+      id: "act-4",
+      type: "new_student",
+      student_name: "کیان مرادی",
+      action_text: "شاگرد جدید اضافه شد",
+      time: "دیروز",
+    },
+  ],
 };

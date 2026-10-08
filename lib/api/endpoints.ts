@@ -71,6 +71,9 @@ export const ENDPOINTS = {
   COACHES: {
     LIST: "/coaches/",
     DETAIL: (id: string | number) => `/coaches/${id}/`,
+    DASHBOARD: "/coaches/dashboard/",
+    ME: "/coaches/me/",
+    MY_STUDENTS: "/coaches/my-students/",
   },
 
   // Classes & Schedules
