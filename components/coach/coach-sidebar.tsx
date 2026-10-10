@@ -326,8 +326,16 @@ export function CoachSidebar({ isOpen, onClose }: CoachSidebarProps) {
             }}
             className="flex items-center gap-[11px] rounded-[12px] p-[9px_11px] transition-colors duration-180 hover:bg-bg"
           >
-            <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] bg-gradient-to-br from-primary to-cyan text-[14px] font-extrabold text-ink">
-              {getInitials(coachName)}
+            <span className="relative flex h-[38px] w-[38px] shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-gradient-to-br from-primary to-cyan text-[14px] font-extrabold text-ink">
+              <img
+                src="/images/coach-profile.jpg"
+                alt={coachName}
+                className="absolute inset-0 h-full w-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = "none";
+                }}
+              />
+              <span className="relative">{getInitials(coachName)}</span>
             </span>
             <span className="flex min-w-0 flex-col leading-[1.4]">
               <span className="truncate text-[13.5px] font-bold text-ink">{coachName}</span>

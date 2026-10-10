@@ -1,84 +1,537 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { useAuth } from "@/lib/auth-context";
 import { CoachSidebar } from "@/components/coach/coach-sidebar";
 import { CoachTopbar } from "@/components/coach/coach-topbar";
-import { toPersianDigits } from "@/lib/persian-digits";
 
 export default function CoachProfilePage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<"info" | "expert" | "account">("info");
 
-  const coachName = user?.full_name?.trim() || "آرش رستمی";
-  const initials = coachName.slice(0, 2);
+  // Form states - Info
+  const [firstName, setFirstName] = useState("آرش");
+  const [lastName, setLastName] = useState("رستمی");
+  const [email, setEmail] = useState("arash@titan.fit");
+  const [phone, setPhone] = useState("۰۹۱۲۳۴۵۶۷۸۹");
+  const [bio, setBio] = useState(
+    "مربی بدنسازی و فیتنس با تمرکز بر افزایش حجم و قدرت. علاقه‌مند به برنامه‌ریزی علمی و پیگیری دقیق پیشرفت شاگردان."
+  );
+
+  // Form states - Expert
+  const [specialties, setSpecialties] = useState<string[]>([
+    "بدنسازی",
+    "افزایش حجم",
+    "قدرت",
+    "تغذیه‌ی ورزشی",
+  ]);
+  const allSpecialties = [
+    "بدنسازی",
+    "افزایش حجم",
+    "قدرت",
+    "چربی‌سوزی",
+    "تغذیه‌ی ورزشی",
+    "کراس‌فیت",
+    "بازتوانی",
+    "فانکشنال",
+  ];
+  const [experienceYears, setExperienceYears] = useState("۵");
+  const [mainCert, setMainCert] = useState("NASM-CPT");
+  const [avatarUrl, setAvatarUrl] = useState<string>("/images/coach-profile.jpg");
+
+  // Form states - Account
+  const [sessionAlerts, setSessionAlerts] = useState(true);
+  const [messageAlerts, setMessageAlerts] = useState(true);
+  const [weeklyReport, setWeeklyReport] = useState(false);
+  const [publicProfile, setPublicProfile] = useState(true);
+
+  // Save feedback states
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const result = uploadEvent.target?.result as string;
+        if (result) {
+          setAvatarUrl(result);
+          handleSave("عکس پروفایل با موفقیت به‌روزرسانی شد");
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const toggleSpecialty = (item: string) => {
+    setSpecialties((prev) =>
+      prev.includes(item) ? prev.filter((s) => s !== item) : [...prev, item]
+    );
+  };
+
+  const handleSave = (msg: string = "تغییرات با موفقیت ذخیره شد") => {
+    setSaveStatus(msg);
+    setTimeout(() => {
+      setSaveStatus(null);
+    }, 2500);
+  };
+
+  const handleResetInfo = () => {
+    setFirstName("آرش");
+    setLastName("رستمی");
+    setEmail("arash@titan.fit");
+    setPhone("۰۹۱۲۳۴۵۶۷۸۹");
+    setBio(
+      "مربی بدنسازی و فیتنس با تمرکز بر افزایش حجم و قدرت. علاقه‌مند به برنامه‌ریزی علمی و پیگیری دقیق پیشرفت شاگردان."
+    );
+  };
 
   return (
     <div className="app flex min-h-screen">
-      <CoachSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {/* Sidebar Navigation */}
+      <CoachSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* Main Container */}
       <div className="main flex flex-1 flex-col min-w-0">
-        <CoachTopbar onToggleSidebar={() => setSidebarOpen((p) => !p)} />
-        <main className="content flex-1 p-[18px] min-[640px]:p-[28px]">
-          {/* Header */}
-          <div className="page-head flex flex-wrap items-end justify-between gap-[16px] mb-[24px]">
+        {/* Topbar: Exactly like other coach dashboard pages */}
+        <CoachTopbar
+          onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+        />
+
+        {/* Content */}
+        <main className="content">
+          {/* Page Head */}
+          <div className="page-head">
             <div>
-              <h1 className="text-[22px] min-[640px]:text-[26px] font-extrabold text-ink">پروفایل مربی</h1>
-              <div className="sub text-[14px] text-ink-faint mt-[5px]">اطلاعات فردی، تخصص‌ها و گواهی‌نامه‌های ورزشی</div>
+              <h1>پروفایل مربی</h1>
+              <div className="sub">اطلاعات حساب، تخصص‌ها و تنظیمات شما</div>
             </div>
-            <Link href="/coach" className="btn btn-outline btn-sm">بازگشت به داشبورد</Link>
           </div>
+
+          {/* Toast Notification */}
+          {saveStatus && (
+            <div className="mb-4 flex items-center justify-between rounded-[12px] border border-primary/30 bg-tint p-3 text-[13px] font-bold text-primary-dark shadow-xs transition-all">
+              <span>{saveStatus}</span>
+              <button
+                type="button"
+                onClick={() => setSaveStatus(null)}
+                className="text-primary-dark hover:opacity-75"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Profile Card */}
-          <div className="card bg-surface border border-border rounded-[16px] p-6 shadow-[0_2px_8px_rgba(15,23,42,0.04)] mb-6">
-            <div className="flex items-center gap-5 flex-wrap">
-              <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-primary to-cyan text-[28px] font-extrabold text-ink shadow-[0_8px_24px_rgba(22,224,160,0.25)]">
-                {initials}
-              </span>
-              <div>
-                <h2 className="text-[20px] font-extrabold text-ink">{coachName}</h2>
-                <div className="text-[13.5px] text-ink-faint mt-1 flex items-center gap-2">
-                  <span>مربی ارشد بدنسازی و فیتنس</span>
-                  <span>•</span>
-                  <span>مدرک بین‌المللی IFBB</span>
+          <div className="card" style={{ marginBottom: "18px" }}>
+            <div className="card-body">
+              <div className="profile-head">
+                <div className="relative group">
+                  <span className="profile-avatar overflow-hidden relative shadow-md border-2 border-white">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={`${firstName} ${lastName}`}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span>
+                        {firstName.charAt(0) + (lastName.charAt(0) || "")}
+                      </span>
+                    )}
+                  </span>
+                  <label
+                    htmlFor="header-avatar-upload"
+                    className="absolute -bottom-1 -left-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-border bg-white text-ink shadow-sm transition-all hover:scale-105 hover:bg-tint hover:text-primary-dark"
+                    title="تغییر عکس پروفایل"
+                  >
+                    <svg
+                      className="h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    <input
+                      id="header-avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                    />
+                  </label>
                 </div>
-              </div>
-
-              <div className="mr-auto flex gap-3 flex-wrap">
-                <div className="bg-bg rounded-xl px-4 py-2.5 text-center min-w-[80px]">
-                  <div className="text-[18px] font-extrabold text-ink">{toPersianDigits(38)}</div>
-                  <div className="text-[11px] text-ink-faint">شاگردان</div>
+                <div className="profile-id">
+                  <div className="nm">
+                    {firstName} {lastName}
+                  </div>
+                  <div className="rl">
+                    مربی بدنسازی{" "}
+                    <span className="tag">{experienceYears} سال سابقه</span>{" "}
+                    <span className="tag cyan">گواهی {mainCert}</span>
+                  </div>
                 </div>
-                <div className="bg-bg rounded-xl px-4 py-2.5 text-center min-w-[80px]">
-                  <div className="text-[18px] font-extrabold text-ink">{toPersianDigits(6)} سال</div>
-                  <div className="text-[11px] text-ink-faint">سابقه</div>
-                </div>
-                <div className="bg-bg rounded-xl px-4 py-2.5 text-center min-w-[80px]">
-                  <div className="text-[18px] font-extrabold text-ink">۴.۹ ★</div>
-                  <div className="text-[11px] text-ink-faint">امتیاز</div>
+                <div className="profile-stats">
+                  <div className="pstat">
+                    <div className="v">۳۸</div>
+                    <div className="l">شاگرد فعال</div>
+                  </div>
+                  <div className="pstat">
+                    <div className="v">٪۹۱</div>
+                    <div className="l">رضایت</div>
+                  </div>
+                  <div className="pstat">
+                    <div className="v">۱۲۴</div>
+                    <div className="l">برنامه</div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-[18px]">
-            <div className="card bg-surface border border-border rounded-[16px] p-6 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-              <h3 className="text-[16px] font-bold text-ink mb-4">تخصص‌ها و حوزه‌های تمرین</h3>
-              <div className="flex flex-wrap gap-2">
-                <span className="pill text-[12px] font-bold text-primary-dark bg-tint px-3 py-1.5 rounded-full">بدنسازی و هایپرتروفی</span>
-                <span className="pill text-[12px] font-bold text-primary-dark bg-tint px-3 py-1.5 rounded-full">برنامه‌ریزی چربی‌سوزی</span>
-                <span className="pill text-[12px] font-bold text-primary-dark bg-tint px-3 py-1.5 rounded-full">تمرینات قدرتی و پاورلیفتینگ</span>
-                <span className="pill text-[12px] font-bold text-primary-dark bg-tint px-3 py-1.5 rounded-full">طراحی رژیم مکمل</span>
-              </div>
+          {/* Details Card with Tabs */}
+          <div className="card">
+            <div className="tabs-bar" id="tabsBar">
+              <button
+                type="button"
+                className={`tab ${activeTab === "info" ? "active" : ""}`}
+                onClick={() => setActiveTab("info")}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                </svg>
+                اطلاعات شخصی
+              </button>
+              <button
+                type="button"
+                className={`tab ${activeTab === "expert" ? "active" : ""}`}
+                onClick={() => setActiveTab("expert")}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 2 15.09 8.26 22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2Z" />
+                </svg>
+                تخصص‌ها
+              </button>
+              <button
+                type="button"
+                className={`tab ${activeTab === "account" ? "active" : ""}`}
+                onClick={() => setActiveTab("account")}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+                </svg>
+                تنظیمات حساب
+              </button>
             </div>
 
-            <div className="card bg-surface border border-border rounded-[16px] p-6 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-              <h3 className="text-[16px] font-bold text-ink mb-4">بیوگرافی و درباره مربی</h3>
-              <p className="text-[13.5px] text-ink-soft leading-[1.8]">
-                مربی رسمی فدراسیون بدنسازی با بیش از ۶ سال سابقه در مربیگری تخصصی و آماده‌سازی ورزشکاران برای اهداف حجم، کات و ارتقای آمادگی جسمانی. تمرکز اصلی بر اجرای صحیح حرکات و پیشگیری از آسیب‌دیدگی‌های مفصلی.
-              </p>
-            </div>
+            {/* Panel 1: Personal Info */}
+            {activeTab === "info" && (
+              <div className="panel">
+                <div className="panel-title">اطلاعات شخصی</div>
+                <div className="panel-sub">
+                  این اطلاعات در پروفایل عمومی شما نمایش داده می‌شود
+                </div>
+
+                {/* Profile Photo Management */}
+                <div className="mb-5 flex flex-wrap items-center gap-4 rounded-[14px] border border-border bg-bg p-4">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[16px] border-2 border-white bg-white shadow-sm">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={`${firstName} ${lastName}`}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-cyan font-extrabold text-ink">
+                        {firstName.charAt(0) + (lastName.charAt(0) || "")}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex min-w-[200px] flex-1 flex-col gap-1.5">
+                    <div className="text-[13.5px] font-bold text-ink">
+                      تصویر پروفایل مربی
+                    </div>
+                    <div className="text-[12px] text-ink-faint">
+                      تصویر انتخابی در سایدبار، پیام‌ها و کارت پروفایل شما نمایش داده می‌شود
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <label
+                        htmlFor="tab-avatar-upload"
+                        className="btn btn-outline btn-sm cursor-pointer px-3 py-1.5 text-[12.5px]"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-3.5 w-3.5"
+                        >
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        بارگذاری عکس جدید
+                        <input
+                          id="tab-avatar-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarUpload}
+                        />
+                      </label>
+                      {avatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAvatarUrl("");
+                            handleSave("عکس پروفایل حذف شد و حروف اول نام جایگزین شد");
+                          }}
+                          className="btn btn-outline btn-sm px-3 py-1.5 text-[12.5px] text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                        >
+                          حذف عکس
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div className="field">
+                    <label>نام</label>
+                    <input
+                      className="input"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label>نام خانوادگی</label>
+                    <input
+                      className="input"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label>ایمیل</label>
+                    <input
+                      className="input"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label>شماره تماس</label>
+                    <input
+                      className="input"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
+                  </div>
+                  <div className="field full">
+                    <label>بیوگرافی</label>
+                    <textarea
+                      className="input"
+                      placeholder="درباره‌ی خودت بنویس…"
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div
+                  style={{
+                    marginTop: "18px",
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: "10px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={handleResetInfo}
+                    className="btn btn-outline btn-sm"
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSave("اطلاعات شخصی با موفقیت ذخیره شد")}
+                    className="btn btn-primary btn-sm"
+                  >
+                    ذخیره‌ی تغییرات
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Panel 2: Specialties & Certificates */}
+            {activeTab === "expert" && (
+              <div className="panel">
+                <div className="panel-title">تخصص‌ها و گواهی‌ها</div>
+                <div className="panel-sub">حوزه‌های تخصصی خود را مشخص کن</div>
+                <div className="field full" style={{ marginBottom: "20px" }}>
+                  <label>حوزه‌های تخصصی</label>
+                  <div className="chip-pick">
+                    {allSpecialties.map((item) => {
+                      const isOn = specialties.includes(item);
+                      return (
+                        <span
+                          key={item}
+                          className={`cp ${isOn ? "on" : ""}`}
+                          onClick={() => toggleSpecialty(item)}
+                        >
+                          {item}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <div className="field">
+                    <label>سال‌های تجربه</label>
+                    <input
+                      className="input"
+                      value={experienceYears}
+                      onChange={(e) => setExperienceYears(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label>گواهینامه‌ی اصلی</label>
+                    <input
+                      className="input"
+                      value={mainCert}
+                      onChange={(e) => setMainCert(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div
+                  style={{
+                    marginTop: "18px",
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: "10px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleSave("تخصص‌ها با موفقیت ذخیره شد")}
+                    className="btn btn-primary btn-sm"
+                  >
+                    ذخیره
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Panel 3: Account Settings */}
+            {activeTab === "account" && (
+              <div className="panel">
+                <div className="panel-title">تنظیمات حساب</div>
+                <div className="panel-sub">اعلان‌ها و ترجیحات حساب</div>
+                <div className="toggle-row">
+                  <div className="meta">
+                    <div className="t">اعلان جلسات</div>
+                    <div className="d">یادآوری پیش از هر جلسه‌ی تمرین</div>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={sessionAlerts}
+                      onChange={(e) => setSessionAlerts(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+                <div className="toggle-row">
+                  <div className="meta">
+                    <div className="t">پیام شاگردان</div>
+                    <div className="d">اعلان هنگام دریافت پیام جدید</div>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={messageAlerts}
+                      onChange={(e) => setMessageAlerts(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+                <div className="toggle-row">
+                  <div className="meta">
+                    <div className="t">گزارش هفتگی</div>
+                    <div className="d">خلاصه‌ی عملکرد شاگردان در ایمیل</div>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={weeklyReport}
+                      onChange={(e) => setWeeklyReport(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+                <div className="toggle-row">
+                  <div className="meta">
+                    <div className="t">نمایش عمومی پروفایل</div>
+                    <div className="d">نمایش پروفایل در صفحه‌ی مربیان باشگاه</div>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={publicProfile}
+                      onChange={(e) => setPublicProfile(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+                <div
+                  style={{
+                    marginTop: "18px",
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: "10px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleSave("تنظیمات حساب با موفقیت ذخیره شد")}
+                    className="btn btn-primary btn-sm"
+                  >
+                    ذخیره‌ی تنظیمات
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </main>
       </div>
