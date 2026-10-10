@@ -5,6 +5,7 @@ import { Menu, Search } from "lucide-react";
 
 interface CoachTopbarProps {
   onToggleSidebar: () => void;
+  title?: string;
   searchPlaceholder?: string;
   customAction?: React.ReactNode;
   onSearchChange?: (val: string) => void;
@@ -12,6 +13,7 @@ interface CoachTopbarProps {
 
 export function CoachTopbar({
   onToggleSidebar,
+  title,
   searchPlaceholder = "جستجو…",
   customAction,
   onSearchChange,
@@ -28,16 +30,20 @@ export function CoachTopbar({
         <Menu className="h-[22px] w-[22px] stroke-[2]" />
       </button>
 
-      {/* Search Input */}
-      <div className="hidden items-center gap-[10px] rounded-[12px] border border-border bg-surface px-[14px] py-[9px] transition-colors focus-within:border-primary min-[640px]:flex min-[640px]:w-[340px] min-[640px]:max-w-[40vw]">
-        <Search className="h-[17px] w-[17px] shrink-0 text-ink-faint" />
-        <input
-          type="text"
-          placeholder={searchPlaceholder}
-          onChange={(e) => onSearchChange?.(e.target.value)}
-          className="w-full border-none bg-transparent text-[14px] text-ink placeholder:text-ink-faint focus:outline-none"
-        />
-      </div>
+      {/* Title if provided, otherwise Search Input */}
+      {title ? (
+        <div className="text-[18px] font-extrabold text-ink">{title}</div>
+      ) : (
+        <div className="hidden items-center gap-[10px] rounded-[12px] border border-border bg-surface px-[14px] py-[9px] transition-colors focus-within:border-primary min-[640px]:flex min-[640px]:w-[340px] min-[640px]:max-w-[40vw]">
+          <Search className="h-[17px] w-[17px] shrink-0 text-ink-faint" />
+          <input
+            type="text"
+            placeholder={searchPlaceholder}
+            onChange={(e) => onSearchChange?.(e.target.value)}
+            className="w-full border-none bg-transparent text-[14px] text-ink placeholder:text-ink-faint focus:outline-none"
+          />
+        </div>
+      )}
 
       {/* Topbar Actions */}
       <div className="mr-auto flex items-center gap-[10px]">
