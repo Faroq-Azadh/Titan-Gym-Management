@@ -196,7 +196,7 @@ export function CoachSidebar({ isOpen, onClose }: CoachSidebarProps) {
       {/* Mobile Backdrop Scrim */}
       <div
         className={cn(
-          "fixed inset-0 z-55 bg-ink/40 backdrop-blur-[2px] transition-opacity duration-300 min-[981px]:hidden",
+          "fixed inset-0 z-55 bg-ink/40 backdrop-blur-[2px] transition-opacity duration-300 min-[981px]:hidden print:hidden",
           isOpen ? "block opacity-100" : "hidden opacity-0 pointer-events-none"
         )}
         onClick={onClose}
@@ -207,7 +207,7 @@ export function CoachSidebar({ isOpen, onClose }: CoachSidebarProps) {
       <aside
         id="sidebar"
         className={cn(
-          "fixed top-0 right-0 z-60 flex h-screen w-[264px] shrink-0 flex-col border-l border-border bg-surface transition-transform duration-300 cubic-bezier(0.4, 0, 0.2, 1) min-[981px]:sticky min-[981px]:translate-x-0 min-[981px]:shadow-none",
+          "fixed top-0 right-0 z-60 flex h-screen w-[264px] shrink-0 flex-col border-l border-border bg-surface transition-transform duration-300 cubic-bezier(0.4, 0, 0.2, 1) min-[981px]:sticky min-[981px]:translate-x-0 min-[981px]:shadow-none print:hidden",
           isOpen ? "translate-x-0 shadow-lg" : "translate-x-full min-[981px]:translate-x-0"
         )}
       >
